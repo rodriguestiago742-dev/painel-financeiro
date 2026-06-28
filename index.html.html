@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel Doméstico</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --ink:#0d1b1e; --paper:#f3efe6; --panel:#ffffff; --line:#d9d2c4;
+  --green:#1f7a5a; --green-soft:#e3f0ea; --red:#b8442f; --red-soft:#f6e4df;
+  --amber:#c8821a; --amber-soft:#faf0db; --blue:#2b5d7d; --violet:#6a4c93; --muted:#6b6557;
+  --shadow:0 1px 3px rgba(13,27,30,.06),0 8px 24px rgba(13,27,30,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--paper);color:var(--ink);line-height:1.45;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1320px;margin:0 auto;padding:0 24px 110px}
+/* Barra superior fixa e compacta */
+.topbar{position:sticky;top:0;z-index:60;background:var(--paper);border-bottom:2px solid var(--ink);
+  margin:0 -24px;padding:8px 24px;display:flex;align-items:center;gap:16px;flex-wrap:nowrap;min-height:54px}
+.topbar .brand{display:flex;align-items:baseline;gap:10px;flex-shrink:0}
+.topbar .brand h1{font-size:21px;font-weight:800;letter-spacing:-.02em;line-height:1}
+.topbar .brand h1 span{color:var(--green)}
+.topbar .brand .eyebrow{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.topbar .actrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.topbar .spacer{flex:1}
+.topbar .status{font-size:10.5px;color:var(--muted);text-align:right;line-height:1.4;flex-shrink:0;max-width:230px}
+.topbar .status b{color:var(--green)}
+.topbar .status.flash{animation:flash 1.4s ease}
+@media(max-width:1100px){
+  .topbar{flex-wrap:wrap;gap:10px}
+  .topbar .status{max-width:100%;text-align:left;flex-basis:100%}
+}
+.brand .eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:6px}
+.brand h1{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1}
+.brand h1 span{color:var(--green)}
+.brand .sub{font-size:13px;color:var(--muted);margin-top:8px;max-width:440px}
+.actions{display:flex;flex-direction:column;gap:8px;align-items:flex-end;margin-left:auto;text-align:right}
+.actrow{display:flex;gap:10px;align-items:center}
+.btn{font-size:12px;font-weight:600;border:1.5px solid var(--ink);background:var(--ink);
+  color:var(--paper);padding:8px 10px;border-radius:8px;cursor:pointer;transition:.15s;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  width:150px;height:38px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn:hover{transform:translateY(-1px)}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn.ghost:hover{background:var(--ink);color:var(--paper)}
+.btn.big{background:var(--green);border-color:var(--green)}
+.btn.form{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.form:hover{filter:brightness(1.08)}
+.btn-divider{width:1px;height:26px;background:var(--line);margin:0 2px;align-self:center}
+/* Navegação por abas — barra inferior fixa estilo app */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:70;display:flex;gap:6px;justify-content:center;
+  background:var(--paper);border-top:2px solid var(--ink);padding:8px 16px;
+  box-shadow:0 -6px 18px -10px rgba(13,27,30,.3)}
+.tab{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:700;
+  color:var(--muted);background:none;border:none;cursor:pointer;padding:6px 18px;border-radius:10px;
+  font-family:inherit;transition:.15s;min-width:84px}
+.tab .tab-ic{font-size:20px;line-height:1}
+.tab:hover{color:var(--ink);background:var(--green-soft)}
+.tab.on{color:var(--green);background:var(--green-soft)}
+.tabpane{display:none}
+.tabpane.on{display:block;animation:fadein .25s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.status{font-size:11.5px;color:var(--muted);text-align:right;line-height:1.5;max-width:280px;margin-left:auto;align-self:flex-end}
+.status b{color:var(--green)}
+.status.flash{animation:flash 1.4s ease}
+@keyframes flash{0%{color:var(--green)}40%{color:var(--green);font-weight:700}100%{color:var(--muted)}}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:14px 0 20px;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;box-shadow:var(--shadow);
+  position:sticky;top:60px;z-index:45}
+.fgroup{display:flex;flex-direction:column;gap:4px}
+.fgroup label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+select,input[type=text]{font-family:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line);
+  border-radius:7px;background:#fff;color:var(--ink);min-width:130px;cursor:pointer}
+.filters .spacer{flex:1}
+.chip-reset{font-size:12px;color:var(--red);background:none;border:none;cursor:pointer;font-weight:600;padding:6px}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:26px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--muted)}
+.kpi.k-in::before{background:var(--green)}.kpi.k-out::before{background:var(--red)}
+.kpi.k-bal::before{background:var(--blue)}.kpi.k-fore::before{background:var(--amber)}.kpi.k-count::before{background:var(--violet)}
+.kpi .lbl{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.kpi .val{font-size:25px;font-weight:800;letter-spacing:-.02em;margin-top:8px;line-height:1}
+.kpi .meta{font-size:11.5px;color:var(--muted);margin-top:7px}
+.kpi .meta.pos{color:var(--green)}.kpi .meta.neg{color:var(--red)}
+.section-title{display:flex;align-items:baseline;gap:12px;margin:6px 0 16px;padding-top:8px}
+.section-title h2{font-size:19px;font-weight:800;letter-spacing:-.01em}
+.section-title .tag-new{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  background:var(--amber);color:#fff;padding:3px 9px;border-radius:20px}
+.section-title .desc{font-size:12.5px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.card h3{font-size:13px;font-weight:700;letter-spacing:.02em;margin-bottom:2px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card .hint{font-size:11px;color:var(--muted);margin-bottom:14px}
+.col-12{grid-column:span 12}.col-8{grid-column:span 8}.col-7{grid-column:span 7}.col-6{grid-column:span 6}
+.col-5{grid-column:span 5}.col-4{grid-column:span 4}.col-3{grid-column:span 3}
+.chart-box{position:relative;flex:1;height:280px;min-height:240px;max-height:340px}
+.chart-box.tall{height:320px;min-height:300px;max-height:380px}
+.seg{display:flex;gap:4px;background:var(--paper);border-radius:7px;padding:3px;font-size:11px}
+.seg button{border:none;background:none;padding:4px 9px;border-radius:5px;cursor:pointer;font-weight:600;color:var(--muted);font-family:inherit;font-size:11px}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.tbl-wrap{overflow:auto;max-height:460px;border-radius:8px;border:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{position:sticky;top:0;background:var(--ink);color:var(--paper);text-align:left;padding:9px 11px;font-weight:600;font-size:11px;letter-spacing:.04em;white-space:nowrap;cursor:pointer;user-select:none}
+thead th.num{text-align:right}
+thead th:hover{background:#16302f}
+tbody td{padding:8px 11px;border-bottom:1px solid var(--line);white-space:nowrap}
+tbody tr:hover{background:var(--green-soft)}
+tfoot td{padding:10px 11px;font-weight:800;background:var(--paper);border-top:2px solid var(--ink)}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:600}
+.tag.in{background:var(--green-soft);color:var(--green)}
+.tag.out{background:var(--red-soft);color:var(--red)}
+.tag.fore{background:var(--amber-soft);color:var(--amber)}
+.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.bar-cell{position:relative;min-width:120px}
+.bar-track{height:18px;background:var(--paper);border-radius:4px;overflow:hidden;position:relative;border:1px solid var(--line)}
+.bar-fill{height:100%;border-radius:3px 0 0 3px;transition:width .4s}
+.bar-lbl{position:absolute;right:6px;top:0;line-height:18px;font-size:10.5px;font-weight:700}
+.st{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700}
+.st.ok{background:var(--green-soft);color:var(--green)}
+.st.warn{background:var(--amber-soft);color:var(--amber)}
+.st.over{background:var(--red-soft);color:var(--red)}
+.st.none{background:#eee;color:var(--muted)}
+.search{margin-bottom:12px}
+.search input{width:100%;min-width:0;padding:9px 12px}
+.insights{display:flex;flex-direction:column;gap:11px}
+.ins{display:flex;gap:11px;align-items:flex-start;padding:11px 13px;background:var(--paper);border-radius:9px;border:1px solid var(--line)}
+.ins .ic{font-size:18px;line-height:1.2}.ins .tx{font-size:12.5px}.ins .tx b{color:var(--green)}
+.dropzone{position:fixed;inset:0;background:rgba(13,27,30,.92);z-index:99;display:none;align-items:center;justify-content:center;flex-direction:column;gap:18px;color:var(--paper)}
+.dropzone.show{display:flex}
+.dropzone .box{border:2.5px dashed var(--paper);border-radius:18px;padding:60px 80px;text-align:center}
+.dropzone h2{font-size:24px;margin-bottom:8px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(120px);background:var(--green);color:#fff;
+  padding:14px 24px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 8px 30px rgba(0,0,0,.25);
+  z-index:120;transition:transform .35s cubic-bezier(.2,1.2,.3,1);display:flex;align-items:center;gap:10px}
+.toast.show{transform:translateX(-50%) translateY(0)}
+footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);text-align:center}
+@media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}
+  .col-8,.col-7,.col-6,.col-5,.col-4,.col-3{grid-column:span 12}}
+
+/* ===== MOBILE / CELULAR ===== */
+@media(max-width:760px){
+  .wrap{padding:16px 12px 60px}
+  /* Cabeçalho empilhado */
+  header{flex-direction:column;align-items:stretch;gap:14px;padding-bottom:16px;margin-bottom:18px}
+  .brand h1{font-size:26px}
+  .brand .sub{font-size:12px;max-width:100%}
+  .actions{align-items:stretch}
+  .actrow{flex-wrap:wrap;gap:8px}
+  /* Botões maiores e ocupando a largura, fáceis de tocar */
+  .btn{flex:1 1 calc(50% - 8px);justify-content:center;padding:13px 10px;font-size:13px;min-height:46px}
+  .btn.big{flex:1 1 100%}
+  .status{text-align:left;max-width:100%}
+  .actions > div[style]{text-align:left !important;max-width:100% !important}
+  /* KPIs em 2 colunas, depois 1 nas telas bem estreitas */
+  .kpis{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px}
+  .kpi .val{font-size:21px}
+  /* Todos os cards e KPIs internos ocupam a largura toda (vence o style inline) */
+  .grid{gap:12px}
+  .grid > *{grid-column:span 12 !important}
+  .card{padding:14px}
+  /* Gráficos com altura confortável no celular */
+  .chart-box{min-height:260px}
+  .chart-box.tall{min-height:280px}
+  /* Filtros roláveis e legíveis */
+  .filters{padding:12px;gap:8px}
+  .fgroup{flex:1 1 calc(50% - 8px)}
+  select,input[type=text]{min-width:0;width:100%;font-size:16px;padding:10px} /* 16px evita zoom no iOS */
+  /* Tabela: permite rolar de lado sem espremer */
+  .tbl-wrap{max-height:none}
+  table{font-size:12px}
+  thead th,tbody td{padding:8px 9px}
+  /* Toast e dropzone adaptados */
+  .dropzone .box{padding:36px 28px}
+  .seg{flex-wrap:wrap}
+}
+@media(max-width:430px){
+  .kpis{grid-template-columns:1fr}
+  .btn{flex:1 1 100%}
+  .fgroup{flex:1 1 100%}
+  .brand h1{font-size:23px}
+}
+/* Botão da linha clicável */
+.linha-btn{background:var(--green-soft);color:var(--green);border:1px solid var(--green);
+  border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700;cursor:pointer;
+  font-variant-numeric:tabular-nums;transition:background .15s}
+.linha-btn:hover{background:var(--green);color:#fff}
+/* Modal editor */
+.modal-bg{position:fixed;inset:0;background:rgba(13,27,30,.55);z-index:200;display:none;
+  align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto}
+.modal-bg.show{display:flex}
+.modal{background:var(--panel);border-radius:16px;max-width:480px;width:100%;
+  box-shadow:0 18px 60px rgba(0,0,0,.3);padding:22px 24px}
+.modal h3{font-size:18px;margin:0 0 4px;color:var(--ink)}
+.modal .sub{font-size:12px;color:var(--muted);margin-bottom:16px}
+.modal label{display:block;font-weight:700;font-size:11.5px;margin:10px 0 3px;color:var(--ink)}
+.modal input.mc{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line);
+  border-radius:8px;font-size:13px;font-family:inherit;background:#fff;color:var(--ink)}
+.modal input.mc:focus{outline:none;border-color:var(--green)}
+.modal select.mc{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line);
+  border-radius:8px;font-size:13px;font-family:inherit;background:#fff;color:var(--ink);cursor:pointer}
+.modal select.mc:focus{outline:none;border-color:var(--green)}
+.modal input.mc[readonly]{background:#eee;color:#999}
+.modal .mrodape{margin-top:18px;display:flex;gap:8px}
+.modal .mbtn{padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700}
+.modal .mbtn.salvar{background:var(--green);color:#fff}
+.modal .mbtn.salvar:disabled{opacity:.5;cursor:default}
+.modal .mbtn.fechar{background:var(--line);color:var(--ink)}
+.modal #mstatus{margin-top:12px;font-size:12.5px;min-height:18px;font-weight:600}
+</style>
+</head>
+<body>
+<!-- Modal Editor de Registro -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3>✎ Corrigir lançamento</h3>
+    <div class="sub" id="m-sub">Linha —</div>
+    <div id="m-campos"></div>
+    <div class="mrodape">
+      <button class="mbtn salvar" id="m-salvar" onclick="salvarEdicao()">Salvar</button>
+      <button class="mbtn fechar" onclick="fecharEditor()">Fechar</button>
+    </div>
+    <div id="mstatus"></div>
+  </div>
+</div>
+<div class="wrap">
+
+<div class="topbar">
+  <div class="brand">
+    <h1>Painel <span>Doméstico</span></h1>
+  </div>
+  <div class="actrow">
+    <input type="file" id="file" accept=".xlsx,.xls" style="display:none">
+    <button class="btn big" onclick="loadFromGoogle(false)">⟳ Atualizar dados</button>
+    <button class="btn big" onclick="abrirNovo()" title="Adicionar um novo lançamento direto na planilha" style="background:var(--green);color:#fff">➕ Novo lançamento</button>
+    <button class="btn form" onclick="abrirFormulario()" title="Abrir o formulário do Google para lançar novos dados">✎ Lançar no formulário</button>
+    <span class="btn-divider"></span>
+    <button class="btn ghost" onclick="document.getElementById('file').click()" title="Carregar um arquivo manualmente">↑ Enviar planilha</button>
+    <button class="btn ghost" onclick="exportCSV()">Exportar CSV</button>
+    <button class="btn ghost" onclick="if(confirm('Zerar o painel (0 lançamentos)? Depois baixe do OneDrive e atualize a planilha.'))clearSaved()">Limpar memória</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="status" id="status"></div>
+</div>
+
+<div class="filters" id="filters">
+  <div class="fgroup"><label>Período</label><select id="f-mes"></select></div>
+  <div class="fgroup"><label>Tipo de registro</label><select id="f-tipo"></select></div>
+  <div class="fgroup"><label>Categoria</label><select id="f-cat"></select></div>
+  <div class="fgroup"><label>Classificação</label><select id="f-class"></select></div>
+  <div class="fgroup"><label>Responsável</label><select id="f-ger"></select></div>
+  <div class="fgroup"><label>Forma de pagamento</label><select id="f-forma"></select></div>
+  <div class="spacer"></div>
+  <button class="chip-reset" onclick="resetFilters()">Limpar filtros ✕</button>
+</div>
+
+<!-- ABA: VISÃO GERAL -->
+<div class="tabpane on" id="pane-geral">
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+    <div class="card col-12">
+      <h3>Leitura rápida</h3>
+      <div class="hint">Destaques calculados do recorte atual</div>
+      <div class="insights" id="insights" style="flex-direction:row;flex-wrap:wrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ABA: ORÇAMENTO -->
+<div class="tabpane" id="pane-orcamento">
+  <div class="section-title">
+    <h2>Orçamento — Previsto × Realizado</h2>
+    <span class="tag-new">Foco</span>
+    <span class="desc">Compara o que foi previsto com o que de fato entrou e saiu, por categoria.</span>
+  </div>
+  <div class="grid" style="margin-bottom:28px">
+    <div class="kpi k-fore col-3" style="grid-column:span 3">
+      <div class="lbl">Gasto previsto</div><div class="val" id="b-prev">—</div>
+      <div class="meta" id="b-prev-m"></div>
+    </div>
+    <div class="kpi k-out col-3" style="grid-column:span 3">
+      <div class="lbl">Gasto realizado</div><div class="val" id="b-real">—</div>
+      <div class="meta" id="b-real-m"></div>
+    </div>
+    <div class="kpi k-bal col-3" style="grid-column:span 3">
+      <div class="lbl">Diferença (prev − real)</div><div class="val" id="b-dif">—</div>
+      <div class="meta" id="b-dif-m"></div>
+    </div>
+    <div class="kpi k-count col-3" style="grid-column:span 3">
+      <div class="lbl">Utilização do orçamento</div><div class="val" id="b-util">—</div>
+      <div class="meta" id="b-util-m"></div>
+    </div>
+    <div class="card col-12">
+      <h3>Tabela cruzada por categoria
+        <div class="seg" id="bud-seg">
+          <button data-m="gasto" class="on">Gastos</button>
+          <button data-m="provento">Proventos</button>
+        </div>
+      </h3>
+      <div class="hint">Previsto, realizado, diferença e % utilizado. Selecione um mês no filtro acima para comparar período a período. Clique nos cabeçalhos para ordenar.</div>
+      <div class="tbl-wrap"><table id="bud-tbl">
+        <thead><tr>
+          <th data-k="cat">Categoria</th>
+          <th data-k="prev" class="num">Previsto</th>
+          <th data-k="real" class="num">Realizado</th>
+          <th data-k="dif" class="num">Diferença</th>
+          <th data-k="util" class="num">% Utilizado</th>
+          <th>Progresso</th>
+          <th data-k="status">Status</th>
+        </tr></thead>
+        <tbody id="bud-body"></tbody>
+        <tfoot id="bud-foot"></tfoot>
+      </table></div>
+    </div>
+    <div class="card col-7">
+      <h3>Previsto × Realizado por categoria</h3>
+      <div class="hint">Barras lado a lado · ordenado pelo previsto</div>
+      <div class="chart-box tall"><canvas id="c-budget"></canvas></div>
+    </div>
+    <div class="card col-5">
+      <h3>Previsto × Realizado mês a mês</h3>
+      <div class="hint">Acompanha a execução do orçamento ao longo do ano</div>
+      <div class="chart-box tall"><canvas id="c-budmonth"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ABA: ANÁLISES -->
+<div class="tabpane" id="pane-analises">
+  <div class="section-title">
+    <h2>Análises gerais</h2>
+    <span class="desc">Fluxo de caixa e composição de gastos.</span>
+  </div>
+  <div class="grid">
+    <div class="card col-8">
+      <h3>Fluxo ao longo do tempo
+        <div class="seg" id="flow-seg">
+          <button data-m="mensal" class="on">Mensal</button>
+          <button data-m="acumulado">Saldo acumulado</button>
+        </div>
+      </h3>
+      <div class="hint">Entradas, saídas reais e saldo período a período</div>
+      <div class="chart-box tall"><canvas id="c-flow"></canvas></div>
+    </div>
+    <div class="card col-4">
+      <h3>Despesas por categoria</h3>
+      <div class="hint">Apenas saídas reais do recorte atual</div>
+      <div class="chart-box tall"><canvas id="c-cat"></canvas></div>
+    </div>
+    <div class="card col-4">
+      <h3>Fixo x Variável</h3>
+      <div class="hint">Composição das saídas reais</div>
+      <div class="chart-box"><canvas id="c-class"></canvas></div>
+    </div>
+    <div class="card col-3" style="grid-column:span 3">
+      <h3>Por responsável</h3>
+      <div class="hint">Saídas reais por gerador</div>
+      <div class="chart-box"><canvas id="c-ger"></canvas></div>
+    </div>
+    <div class="card col-5">
+      <h3>Formas de pagamento</h3>
+      <div class="hint">Saídas reais por meio de pagamento</div>
+      <div class="chart-box"><canvas id="c-forma"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ABA: LANÇAMENTOS -->
+<div class="tabpane" id="pane-lancamentos">
+  <div class="grid">
+    <div class="card col-12">
+      <h3>Lançamentos <span style="font-size:11px;font-weight:500;color:var(--muted)" id="tbl-count"></span></h3>
+      <div class="hint">Clique nos cabeçalhos para ordenar. Use a busca para filtrar.</div>
+      <div class="search"><input type="text" id="search" placeholder="Buscar descrição, categoria, responsável, nº da linha…"></div>
+      <div class="tbl-wrap"><table id="tbl">
+        <thead><tr>
+          <th data-k="linha" class="num">Linha</th>
+          <th data-k="data">Data</th><th data-k="tipo">Tipo</th>
+          <th data-k="categoria">Categoria</th><th data-k="classificacao">Classif.</th>
+          <th data-k="gerador">Responsável</th><th data-k="forma">Pagamento</th>
+          <th data-k="descricao">Descrição</th><th data-k="valor" class="num">Valor (R$)</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
+<footer>Painel gerado a partir do formulário Microsoft 365 · Atualize reenviando a planilha · Todos os cálculos respeitam os filtros ativos</footer>
+
+</div><!-- /wrap -->
+
+<div class="tabs" id="tabs">
+  <button class="tab on" data-pane="pane-geral" onclick="switchTab(this)"><span class="tab-ic">🏠</span>Visão Geral</button>
+  <button class="tab" data-pane="pane-orcamento" onclick="switchTab(this)"><span class="tab-ic">🎯</span>Orçamento</button>
+  <button class="tab" data-pane="pane-analises" onclick="switchTab(this)"><span class="tab-ic">📊</span>Análises</button>
+  <button class="tab" data-pane="pane-lancamentos" onclick="switchTab(this)"><span class="tab-ic">📋</span>Lançamentos</button>
+</div>
+
+<div class="dropzone" id="dz"><div class="box"><h2>Solte a planilha aqui</h2><p>Arquivo .xlsx exportado do formulário</p></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const EMBEDDED = [{"id": 1, "data": "2026-06-01", "valor": 6.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito BB", "gerador": "Celina", "descricao": "pão", "mes": 6, "ano": 2026}, {"id": 2, "data": "2026-06-01", "valor": 2400.0, "tipo": "Entrada Real", "classificacao": "Fixo", "categoria": "Provento", "forma": "Creditado Ifood", "gerador": "Celina", "descricao": "premio", "mes": 6, "ano": 2026}, {"id": 3, "data": "2026-06-01", "valor": 32.09, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Caixa JVA", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "Uber retorno devolucao do carro na unidos", "mes": 6, "ano": 2026}, {"id": 4, "data": "2026-06-01", "valor": 50.0, "tipo": "Entrada Real", "classificacao": "Variável", "categoria": "Provento", "forma": "Creditado Cora", "gerador": "Tiago", "descricao": "Devolução de emprestimo do Alex", "mes": 6, "ano": 2026}, {"id": 5, "data": "2026-06-01", "valor": 225.41, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Caixa JVA", "forma": "Débito Nubank", "gerador": "Tiago", "descricao": "Combustível devolução de carro a locadora", "mes": 6, "ano": 2026}, {"id": 6, "data": "2026-06-01", "valor": 118.45, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "almoço", "mes": 6, "ano": 2026}, {"id": 7, "data": "2026-06-02", "valor": 170.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Outro", "forma": "Débito BB", "gerador": "Celina", "descricao": "pg imposto de renda Tiago contador", "mes": 6, "ano": 2026}, {"id": 8, "data": "2026-06-02", "valor": 9.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "merenda manha padaria", "mes": 6, "ano": 2026}, {"id": 9, "data": "2026-06-02", "valor": 170.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Outro", "forma": "Débito BB", "gerador": "Celina", "descricao": "pg imposto de renda Celina contador", "mes": 6, "ano": 2026}, {"id": 10, "data": "2026-06-02", "valor": 30.53, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "macarronada", "mes": 6, "ano": 2026}, {"id": 11, "data": "2026-06-03", "valor": 50.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Manutenção Transporte", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "borracharia corsa", "mes": 6, "ano": 2026}, {"id": 12, "data": "2026-06-03", "valor": 35.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Caixa JVA", "forma": "Débito BB", "gerador": "Tiago", "descricao": "Uber Transporte almoço jva semana 25/05/26", "mes": 6, "ano": 2026}, {"id": 13, "data": "2026-06-03", "valor": 100.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Combustível", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "cobustivel", "mes": 6, "ano": 2026}, {"id": 14, "data": "2026-06-03", "valor": 30.25, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "almoço", "mes": 6, "ano": 2026}, {"id": 15, "data": "2026-06-03", "valor": 103.4, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "espetinho", "mes": 6, "ano": 2026}, {"id": 16, "data": "2026-06-04", "valor": 13.66, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Vestuário", "forma": "Débito BB", "gerador": "Celina", "descricao": "cartao riachuelo", "mes": 6, "ano": 2026}, {"id": 17, "data": "2026-06-04", "valor": 70.0, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "Comunicação", "forma": "Débito BB", "gerador": "Celina", "descricao": "fatura vivo", "mes": 6, "ano": 2026}, {"id": 18, "data": "2026-06-04", "valor": 118.8, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "tapioqueira", "mes": 6, "ano": 2026}, {"id": 19, "data": "2026-06-04", "valor": 198.3, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "supermercado", "mes": 6, "ano": 2026}, {"id": 20, "data": "2026-06-04", "valor": 26.99, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "chocolates", "mes": 6, "ano": 2026}, {"id": 21, "data": "2026-06-04", "valor": 10.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Manutenção Transporte", "forma": "Débito Ifood", "gerador": "Tiago", "descricao": "compra de desimgripante", "mes": 6, "ano": 2026}, {"id": 22, "data": "2026-06-05", "valor": 15500.0, "tipo": "Entrada Real", "classificacao": "Variável", "categoria": "Provento", "forma": "Creditado Cora", "gerador": "Tiago", "descricao": "Mes 05/2026 JVA e brasrio", "mes": 6, "ano": 2026}, {"id": 23, "data": "2026-06-05", "valor": 630.0, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "Saúde", "forma": "Débito BB", "gerador": "Celina", "descricao": "fono saulo", "mes": 6, "ano": 2026}, {"id": 24, "data": "2026-06-05", "valor": 580.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito BB", "gerador": "Celina", "descricao": "hospedagem sitio do bosco", "mes": 6, "ano": 2026}, {"id": 25, "data": "2026-06-05", "valor": 1064.11, "tipo": "Entrada Real", "classificacao": "Fixo", "categoria": "Provento", "forma": "Creditado Itaú", "gerador": "Celina", "descricao": "salario final", "mes": 6, "ano": 2026}, {"id": 26, "data": "2026-06-05", "valor": 3036.0, "tipo": "Entrada Real", "classificacao": "Variável", "categoria": "Provento", "forma": "Creditado Itaú", "gerador": "Celina", "descricao": "férias celina 15 dias", "mes": 6, "ano": 2026}, {"id": 27, "data": "2026-06-05", "valor": 33.99, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Transporte", "forma": "Débito BB", "gerador": "Tiago", "descricao": "Uber fono do Saulo eusebio", "mes": 6, "ano": 2026}, {"id": 28, "data": "2026-06-05", "valor": 9.6, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "merenda manha padaria", "mes": 6, "ano": 2026}, {"id": 29, "data": "2026-06-05", "valor": 31.79, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "almoço", "mes": 6, "ano": 2026}, {"id": 30, "data": "2026-06-05", "valor": 4.5, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "suco", "mes": 6, "ano": 2026}, {"id": 31, "data": "2026-06-06", "valor": 61.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "Bolo", "mes": 6, "ano": 2026}, {"id": 32, "data": "2026-06-06", "valor": 12.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "Estacionamento", "mes": 6, "ano": 2026}, {"id": 33, "data": "2026-06-06", "valor": 910.0, "tipo": "Entrada Real", "classificacao": "Variável", "categoria": "Provento", "forma": "Creditado BB", "gerador": "Celina", "descricao": "pix sinhara", "mes": 6, "ano": 2026}, {"id": 34, "data": "2026-06-06", "valor": 78.94, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "Moradia", "forma": "Débito BB", "gerador": "Celina", "descricao": "energia", "mes": 6, "ano": 2026}, {"id": 35, "data": "2026-06-06", "valor": 830.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Moradia", "forma": "Previsão", "gerador": "Celina", "descricao": "rosangela", "mes": 6, "ano": 2026}, {"id": 36, "data": "2026-06-06", "valor": 830.0, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "Moradia", "forma": "Débito BB", "gerador": "Celina", "descricao": "rosangela", "mes": 6, "ano": 2026}, {"id": 37, "data": "2026-06-06", "valor": 10.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Manutenção Transporte", "forma": "Dinheiro", "gerador": "Tiago", "descricao": "Gogeta do trocador do oleo do carro onix", "mes": 6, "ano": 2026}, {"id": 38, "data": "2026-06-06", "valor": 195.6, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Manutenção Transporte", "forma": "Débito Nubank", "gerador": "Tiago", "descricao": "1 parcela troca de oleo onix e pecas do corsa", "mes": 6, "ano": 2026}, {"id": 39, "data": "2026-06-06", "valor": 6.11, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "pão de coco", "mes": 6, "ano": 2026}, {"id": 40, "data": "2026-06-06", "valor": 35.01, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Combustível", "forma": "Débito Ifood", "gerador": "Tiago", "descricao": "galao combustivel", "mes": 6, "ano": 2026}, {"id": 41, "data": "2026-06-06", "valor": 639.7, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Vestuário", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "sandalia celina e sinhara", "mes": 6, "ano": 2026}, {"id": 42, "data": "2026-06-06", "valor": 469.8, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Vestuário", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "calçado dante e saulo", "mes": 6, "ano": 2026}, {"id": 43, "data": "2026-06-06", "valor": 159.3, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "mc donalds", "mes": 6, "ano": 2026}, {"id": 44, "data": "2026-06-06", "valor": 14.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "estacionamento", "mes": 6, "ano": 2026}, {"id": 45, "data": "2026-06-07", "valor": 433.78, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "Educação", "forma": "Débito BB", "gerador": "Celina", "descricao": "escola dante", "mes": 6, "ano": 2026}, {"id": 46, "data": "2026-06-07", "valor": 425.0, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "Educação", "forma": "Débito BB", "gerador": "Celina", "descricao": "escola saulo", "mes": 6, "ano": 2026}, {"id": 47, "data": "2026-06-07", "valor": 69.9, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "Moradia", "forma": "Débito Itaú", "gerador": "Celina", "descricao": "internet", "mes": 6, "ano": 2026}, {"id": 48, "data": "2026-06-07", "valor": 199.5, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Vestuário", "forma": "Débito Nubank", "gerador": "Tiago", "descricao": "1ª parcela oculos escuro Tiago", "mes": 6, "ano": 2026}, {"id": 49, "data": "2026-06-07", "valor": 41.75, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "camarao", "mes": 6, "ano": 2026}, {"id": 50, "data": "2026-06-07", "valor": 56.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "sorvete 50 sabores", "mes": 6, "ano": 2026}, {"id": 51, "data": "2026-06-07", "valor": 14.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "estacionamento", "mes": 6, "ano": 2026}, {"id": 52, "data": "2026-06-08", "valor": 480.0, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "CNPJ DS", "forma": "Débito BB", "gerador": "Celina", "descricao": "honorario contabil", "mes": 6, "ano": 2026}, {"id": 53, "data": "2026-06-08", "valor": 47.99, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "Comunicação", "forma": "Débito Itaú", "gerador": "Tiago", "descricao": "tim", "mes": 6, "ano": 2026}, {"id": 54, "data": "2026-06-08", "valor": 3920.0, "tipo": "Entrada Real", "classificacao": "Variável", "categoria": "Provento", "forma": "Creditado Cora", "gerador": "Tiago", "descricao": "Mes 05/2026 brasrio", "mes": 6, "ano": 2026}, {"id": 55, "data": "2026-06-08", "valor": 6.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "merenda manha padaria", "mes": 6, "ano": 2026}, {"id": 56, "data": "2026-06-08", "valor": 12500.0, "tipo": "Previsão Provento", "classificacao": "Variável", "categoria": "Rendimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Mes 05/2026 brasrio + jva", "mes": 6, "ano": 2026}, {"id": 57, "data": "2026-06-08", "valor": 30.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Outro", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "Doação para criança", "mes": 6, "ano": 2026}, {"id": 58, "data": "2026-06-08", "valor": 100.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Combustível", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "combustivel", "mes": 6, "ano": 2026}, {"id": 59, "data": "2026-06-08", "valor": 1500.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "CNPJ DS", "forma": "Previsão", "gerador": "Celina", "descricao": "despesa CNPJ DS", "mes": 6, "ano": 2026}, {"id": 60, "data": "2026-06-09", "valor": 49.45, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Transporte", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "Uber pegar carro na serlares antes da viagem", "mes": 6, "ano": 2026}, {"id": 61, "data": "2026-06-09", "valor": 13.5, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "almoço celina", "mes": 6, "ano": 2026}, {"id": 62, "data": "2026-06-09", "valor": 217.4, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "combustível viagem / Viagem", "mes": 6, "ano": 2026}, {"id": 63, "data": "2026-06-09", "valor": 8.99, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "sobremesa", "mes": 6, "ano": 2026}, {"id": 64, "data": "2026-06-09", "valor": 347.69, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Saúde", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "colirio + fraldas", "mes": 6, "ano": 2026}, {"id": 65, "data": "2026-06-09", "valor": 15.2, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "CNPJ DS", "forma": "Débito Itaú", "gerador": "Celina", "descricao": "imposto iss", "mes": 6, "ano": 2026}, {"id": 66, "data": "2026-06-10", "valor": 217.4, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "Combustivel viagem / Viagem", "mes": 6, "ano": 2026}, {"id": 67, "data": "2026-06-10", "valor": 25.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Outro", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "Doação para igreja de Viçosa", "mes": 6, "ano": 2026}, {"id": 68, "data": "2026-06-10", "valor": 53.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "café da manha / Viagem", "mes": 6, "ano": 2026}, {"id": 69, "data": "2026-06-10", "valor": 213.35, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "almoço sitio do bosco / Viagem", "mes": 6, "ano": 2026}, {"id": 70, "data": "2026-06-10", "valor": 78.98, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "jnatar sitio do bosco / Viagem", "mes": 6, "ano": 2026}, {"id": 71, "data": "2026-06-10", "valor": 250.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Saúde", "forma": "Débito BB", "gerador": "Celina", "descricao": "pagamento remédio", "mes": 6, "ano": 2026}, {"id": 72, "data": "2026-06-10", "valor": 57.2, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Ifood", "gerador": "Celina", "descricao": "cafe viçosa do ceara / Viagem", "mes": 6, "ano": 2026}, {"id": 73, "data": "2026-06-10", "valor": 16.0, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "Outro", "forma": "Débito Caixa", "gerador": "Celina", "descricao": "Taxas conta caixa ", "mes": 6, "ano": 2026}, {"id": 74, "data": "2026-06-11", "valor": 20.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "lache tiago na viagem para serra / Viagem", "mes": 6, "ano": 2026}, {"id": 75, "data": "2026-06-11", "valor": 40.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Tiago", "descricao": "foto com animais / Viagem", "mes": 6, "ano": 2026}, {"id": 76, "data": "2026-06-11", "valor": 14.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "consumação sitio do bosco / Viagem", "mes": 6, "ano": 2026}, {"id": 77, "data": "2026-06-11", "valor": 9.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Saúde", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "medicamento", "mes": 6, "ano": 2026}, {"id": 78, "data": "2026-06-11", "valor": 58.37, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "alimentos para entrada no bondinho / Viagem", "mes": 6, "ano": 2026}, {"id": 79, "data": "2026-06-11", "valor": 5.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "compra de agua / Viagem", "mes": 6, "ano": 2026}, {"id": 80, "data": "2026-06-11", "valor": 125.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "passeio das flores / Viagem", "mes": 6, "ano": 2026}, {"id": 81, "data": "2026-06-11", "valor": 108.88, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "almoço fazenda das flores / Viagem", "mes": 6, "ano": 2026}, {"id": 82, "data": "2026-06-11", "valor": 115.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "compra de itens na fazenda das flores / Viagem", "mes": 6, "ano": 2026}, {"id": 83, "data": "2026-06-11", "valor": 239.83, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "abastecimento / Viagem", "mes": 6, "ano": 2026}, {"id": 84, "data": "2026-06-11", "valor": 44.18, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "compra de pão para cafe da manha", "mes": 6, "ano": 2026}, {"id": 85, "data": "2026-06-11", "valor": 708.74, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Transporte", "forma": "Débito BB", "gerador": "Celina", "descricao": "pagamento do licencciamento", "mes": 6, "ano": 2026}, {"id": 86, "data": "2026-06-11", "valor": 170.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito BB", "gerador": "Celina", "descricao": "entrada genesis park / Viagem", "mes": 6, "ano": 2026}, {"id": 87, "data": "2026-06-11", "valor": 14.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito BB", "gerador": "Celina", "descricao": "agua de coco / Viagem", "mes": 6, "ano": 2026}, {"id": 88, "data": "2026-06-11", "valor": 40.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Outro", "forma": "Débito BB", "gerador": "Celina", "descricao": "doação casa vida", "mes": 6, "ano": 2026}, {"id": 89, "data": "2026-06-11", "valor": 106.98, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito BB", "gerador": "Celina", "descricao": "jantar guaraciaba  / Viagem", "mes": 6, "ano": 2026}, {"id": 90, "data": "2026-06-12", "valor": 15.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "merenda tiago na viagem", "mes": 6, "ano": 2026}, {"id": 91, "data": "2026-06-12", "valor": 5.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "café na viagem / Viagem", "mes": 6, "ano": 2026}, {"id": 92, "data": "2026-06-12", "valor": 216.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "alimentação genesis park / Viagem", "mes": 6, "ano": 2026}, {"id": 93, "data": "2026-06-12", "valor": 105.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "souvenir genesis park / Viagem", "mes": 6, "ano": 2026}, {"id": 94, "data": "2026-06-12", "valor": 59.5, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito BB", "gerador": "Celina", "descricao": "Pizza. Guaraciaba", "mes": 6, "ano": 2026}, {"id": 95, "data": "2026-06-13", "valor": 300.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito BB", "gerador": "Celina", "descricao": "hospedagem guaraciaba / Viagem", "mes": 6, "ano": 2026}, {"id": 96, "data": "2026-06-14", "valor": 20.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Outro", "forma": "Débito BB", "gerador": "Celina", "descricao": "Rifa Igreja", "mes": 6, "ano": 2026}, {"id": 97, "data": "2026-06-14", "valor": 35.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Vestuário", "forma": "Débito BB", "gerador": "Celina", "descricao": "camisa do brasil", "mes": 6, "ano": 2026}, {"id": 98, "data": "2026-06-14", "valor": 80.58, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Saúde", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "remedio Dante e Celina", "mes": 6, "ano": 2026}, {"id": 99, "data": "2026-06-15", "valor": 44.9, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "CNPJ DS", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "Taxa serviços banco cora", "mes": 6, "ano": 2026}, {"id": 100, "data": "2026-06-15", "valor": 990.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "CNPJ DS", "forma": "Débito BB", "gerador": "Tiago", "descricao": "DAS Empresa", "mes": 6, "ano": 2026}, {"id": 101, "data": "2026-06-15", "valor": 48.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Outro", "forma": "Débito BB", "gerador": "Celina", "descricao": "presente rafaela", "mes": 6, "ano": 2026}, {"id": 102, "data": "2026-06-15", "valor": 185.0, "tipo": "Entrada Real", "classificacao": "Fixo", "categoria": "Provento", "forma": "Creditado Ifood", "gerador": "Celina", "descricao": "Cesta basics ", "mes": 6, "ano": 2026}, {"id": 103, "data": "2026-06-15", "valor": 100.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "Combustivel no interior / Viagem", "mes": 6, "ano": 2026}, {"id": 104, "data": "2026-06-16", "valor": 600.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "CNPJ DS", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "Bonus marcos servicos RN Banco", "mes": 6, "ano": 2026}, {"id": 105, "data": "2026-06-16", "valor": 410.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito BB", "gerador": "Celina", "descricao": "hospedagem + banho platao / Viagem", "mes": 6, "ano": 2026}, {"id": 106, "data": "2026-06-16", "valor": 182.56, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "combustivel volta viagem", "mes": 6, "ano": 2026}, {"id": 107, "data": "2026-06-16", "valor": 47.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "lanche viagem", "mes": 6, "ano": 2026}, {"id": 108, "data": "2026-06-16", "valor": 8.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Outro", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "veneno rato", "mes": 6, "ano": 2026}, {"id": 109, "data": "2026-06-16", "valor": 104.61, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "supermercado", "mes": 6, "ano": 2026}, {"id": 110, "data": "2026-06-16", "valor": 15.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Vestuário", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "Cabeleilheiro Tiago", "mes": 6, "ano": 2026}, {"id": 111, "data": "2026-06-16", "valor": 13.2, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Cora", "gerador": "Tiago", "descricao": "Merenda padaria PDP", "mes": 6, "ano": 2026}, {"id": 112, "data": "2026-06-17", "valor": 173.51, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "Moradia", "forma": "Débito BB", "gerador": "Celina", "descricao": "Órigo energia", "mes": 6, "ano": 2026}, {"id": 113, "data": "2026-06-17", "valor": 370.06, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Débito BB", "gerador": "Celina", "descricao": "Prestação Victa ", "mes": 6, "ano": 2026}, {"id": 114, "data": "2026-06-17", "valor": 418.87, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Débito Caixa", "gerador": "Celina", "descricao": "Prestação caixa apto. ", "mes": 6, "ano": 2026}, {"id": 115, "data": "2026-06-17", "valor": 22.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Outro", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "Estacionamento centro. ", "mes": 6, "ano": 2026}, {"id": 116, "data": "2026-06-17", "valor": 315.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Vestuário", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "Roupa Fante + boia + roupa banho ", "mes": 6, "ano": 2026}, {"id": 117, "data": "2026-06-17", "valor": 263.06, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "Brinquedos Dante e Saulo ", "mes": 6, "ano": 2026}, {"id": 118, "data": "2026-06-17", "valor": 800.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Investimentos com AP", "mes": 6, "ano": 2026}, {"id": 119, "data": "2026-06-17", "valor": 266.64, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Seguro de vida/Prudential", "mes": 6, "ano": 2026}, {"id": 120, "data": "2026-06-18", "valor": 100.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Combustível", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "Combustível ", "mes": 6, "ano": 2026}, {"id": 121, "data": "2026-06-19", "valor": 41.5, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "Lanche despedida Jaime ", "mes": 6, "ano": 2026}, {"id": 122, "data": "2026-06-19", "valor": 32.95, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Transporte", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "Uber", "mes": 6, "ano": 2026}, {"id": 123, "data": "2026-06-20", "valor": 20.9, "tipo": "Saída Real", "classificacao": "Fixo", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "Netflix", "mes": 6, "ano": 2026}, {"id": 124, "data": "2026-06-20", "valor": 57.6, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "Bolo", "mes": 6, "ano": 2026}, {"id": 125, "data": "2026-06-20", "valor": 11.47, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Alimentação", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "Pão", "mes": 6, "ano": 2026}, {"id": 126, "data": "2026-06-21", "valor": 14.0, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Outro", "forma": "Débito Nubank", "gerador": "Celina", "descricao": "Estacionamento ", "mes": 6, "ano": 2026}, {"id": 127, "data": "2026-06-21", "valor": 316.47, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Lazer", "forma": "Débito Nubank", "gerador": "Outro", "descricao": "Jantar out Back ", "mes": 6, "ano": 2026}, {"id": 128, "data": "2026-06-22", "valor": 433.78, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola dante", "mes": 6, "ano": 2026}, {"id": 129, "data": "2026-06-22", "valor": 425.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola saulo", "mes": 6, "ano": 2026}, {"id": 130, "data": "2026-06-22", "valor": 319.08, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Seguro de vida/Prudential", "mes": 6, "ano": 2026}, {"id": 131, "data": "2026-06-26", "valor": 100.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "FAELCE - Contribuição voluntaria", "mes": 6, "ano": 2026}, {"id": 132, "data": "2026-07-06", "valor": 830.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Moradia", "forma": "Previsão", "gerador": "Celina", "descricao": "rosangela", "mes": 7, "ano": 2026}, {"id": 133, "data": "2026-07-06", "valor": 195.6, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Manutenção Transporte", "forma": "Débito Nubank", "gerador": "Tiago", "descricao": "2 parcela troca de oleo onix e pecas do corsa", "mes": 7, "ano": 2026}, {"id": 134, "data": "2026-07-07", "valor": 199.5, "tipo": "Saída Real", "classificacao": "Variável", "categoria": "Vestuário", "forma": "Débito Nubank", "gerador": "Tiago", "descricao": "2ª parcela oculos escuro Tiago", "mes": 7, "ano": 2026}, {"id": 135, "data": "2026-07-07", "valor": 433.78, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola dante", "mes": 7, "ano": 2026}, {"id": 136, "data": "2026-07-07", "valor": 425.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola saulo", "mes": 7, "ano": 2026}, {"id": 137, "data": "2026-07-08", "valor": 6500.0, "tipo": "Previsão Provento", "classificacao": "Variável", "categoria": "Rendimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Mes 06/2026 brasrio", "mes": 7, "ano": 2026}, {"id": 138, "data": "2026-07-08", "valor": 1500.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "CNPJ DS", "forma": "Previsão", "gerador": "Celina", "descricao": "despesa CNPJ DS", "mes": 7, "ano": 2026}, {"id": 139, "data": "2026-07-17", "valor": 800.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Investimentos com AP", "mes": 7, "ano": 2026}, {"id": 140, "data": "2026-07-22", "valor": 319.08, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Seguro de vida/Prudential", "mes": 7, "ano": 2026}, {"id": 141, "data": "2026-07-22", "valor": 266.64, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Seguro de vida/Prudential", "mes": 7, "ano": 2026}, {"id": 142, "data": "2026-07-26", "valor": 100.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "FAELCE - Contribuição voluntaria", "mes": 7, "ano": 2026}, {"id": 143, "data": "2026-08-06", "valor": 830.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Moradia", "forma": "Previsão", "gerador": "Celina", "descricao": "rosangela", "mes": 8, "ano": 2026}, {"id": 144, "data": "2026-08-07", "valor": 433.78, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola dante", "mes": 8, "ano": 2026}, {"id": 145, "data": "2026-08-08", "valor": 6500.0, "tipo": "Previsão Provento", "classificacao": "Variável", "categoria": "Rendimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Mes 07/2026 brasrio", "mes": 8, "ano": 2026}, {"id": 146, "data": "2026-08-08", "valor": 425.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola saulo", "mes": 8, "ano": 2026}, {"id": 147, "data": "2026-08-08", "valor": 1500.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "CNPJ DS", "forma": "Previsão", "gerador": "Celina", "descricao": "despesa CNPJ DS", "mes": 8, "ano": 2026}, {"id": 148, "data": "2026-08-17", "valor": 800.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Investimentos com AP", "mes": 8, "ano": 2026}, {"id": 149, "data": "2026-08-22", "valor": 319.08, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Seguro de vida/Prudential", "mes": 8, "ano": 2026}, {"id": 150, "data": "2026-08-22", "valor": 266.64, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Seguro de vida/Prudential", "mes": 8, "ano": 2026}, {"id": 151, "data": "2026-08-26", "valor": 100.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "FAELCE - Contribuição voluntaria", "mes": 8, "ano": 2026}, {"id": 152, "data": "2026-09-06", "valor": 830.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Moradia", "forma": "Previsão", "gerador": "Celina", "descricao": "rosangela", "mes": 9, "ano": 2026}, {"id": 153, "data": "2026-09-07", "valor": 433.78, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola dante", "mes": 9, "ano": 2026}, {"id": 154, "data": "2026-09-07", "valor": 425.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola saulo", "mes": 9, "ano": 2026}, {"id": 155, "data": "2026-09-08", "valor": 6500.0, "tipo": "Previsão Provento", "classificacao": "Variável", "categoria": "Rendimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Mes 08/2026 brasrio", "mes": 9, "ano": 2026}, {"id": 156, "data": "2026-09-08", "valor": 1500.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "CNPJ DS", "forma": "Previsão", "gerador": "Celina", "descricao": "despesa CNPJ DS", "mes": 9, "ano": 2026}, {"id": 157, "data": "2026-09-17", "valor": 800.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Investimentos com AP", "mes": 9, "ano": 2026}, {"id": 158, "data": "2026-09-22", "valor": 319.08, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Seguro de vida/Prudential", "mes": 9, "ano": 2026}, {"id": 159, "data": "2026-09-22", "valor": 266.64, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Seguro de vida/Prudential", "mes": 9, "ano": 2026}, {"id": 160, "data": "2026-09-26", "valor": 100.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "FAELCE - Contribuição voluntaria", "mes": 9, "ano": 2026}, {"id": 161, "data": "2026-10-06", "valor": 830.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Moradia", "forma": "Previsão", "gerador": "Celina", "descricao": "rosangela", "mes": 10, "ano": 2026}, {"id": 162, "data": "2026-10-07", "valor": 433.78, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola dante", "mes": 10, "ano": 2026}, {"id": 163, "data": "2026-10-07", "valor": 425.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola saulo", "mes": 10, "ano": 2026}, {"id": 164, "data": "2026-10-08", "valor": 6500.0, "tipo": "Previsão Provento", "classificacao": "Variável", "categoria": "Rendimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Mes 09/2026 brasrio", "mes": 10, "ano": 2026}, {"id": 165, "data": "2026-10-08", "valor": 1500.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "CNPJ DS", "forma": "Previsão", "gerador": "Celina", "descricao": "despesa CNPJ DS", "mes": 10, "ano": 2026}, {"id": 166, "data": "2026-10-17", "valor": 800.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Investimentos com AP", "mes": 10, "ano": 2026}, {"id": 167, "data": "2026-10-22", "valor": 319.08, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Seguro de vida/Prudential", "mes": 10, "ano": 2026}, {"id": 168, "data": "2026-10-22", "valor": 266.64, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Seguro de vida/Prudential", "mes": 10, "ano": 2026}, {"id": 169, "data": "2026-10-26", "valor": 100.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "FAELCE - Contribuição voluntaria", "mes": 10, "ano": 2026}, {"id": 170, "data": "2026-11-06", "valor": 830.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Moradia", "forma": "Previsão", "gerador": "Celina", "descricao": "rosangela", "mes": 11, "ano": 2026}, {"id": 171, "data": "2026-11-07", "valor": 433.78, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola dante", "mes": 11, "ano": 2026}, {"id": 172, "data": "2026-11-07", "valor": 425.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola saulo", "mes": 11, "ano": 2026}, {"id": 173, "data": "2026-11-08", "valor": 6500.0, "tipo": "Previsão Provento", "classificacao": "Variável", "categoria": "Rendimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Mes 10/2026 brasrio", "mes": 11, "ano": 2026}, {"id": 174, "data": "2026-11-08", "valor": 1500.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "CNPJ DS", "forma": "Previsão", "gerador": "Celina", "descricao": "despesa CNPJ DS", "mes": 11, "ano": 2026}, {"id": 175, "data": "2026-11-17", "valor": 800.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Investimentos com AP", "mes": 11, "ano": 2026}, {"id": 176, "data": "2026-11-22", "valor": 319.08, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Seguro de vida/Prudential", "mes": 11, "ano": 2026}, {"id": 177, "data": "2026-11-22", "valor": 266.64, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Seguro de vida/Prudential", "mes": 11, "ano": 2026}, {"id": 178, "data": "2026-11-26", "valor": 100.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "FAELCE - Contribuição voluntaria", "mes": 11, "ano": 2026}, {"id": 179, "data": "2026-12-06", "valor": 830.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Moradia", "forma": "Previsão", "gerador": "Celina", "descricao": "rosangela", "mes": 12, "ano": 2026}, {"id": 180, "data": "2026-12-07", "valor": 433.78, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola dante", "mes": 12, "ano": 2026}, {"id": 181, "data": "2026-12-07", "valor": 425.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Educação", "forma": "Previsão", "gerador": "Celina", "descricao": "escola saulo", "mes": 12, "ano": 2026}, {"id": 182, "data": "2026-12-08", "valor": 6500.0, "tipo": "Previsão Provento", "classificacao": "Variável", "categoria": "Rendimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Mes 11/2026 brasrio", "mes": 12, "ano": 2026}, {"id": 183, "data": "2026-12-08", "valor": 1500.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "CNPJ DS", "forma": "Previsão", "gerador": "Celina", "descricao": "despesa CNPJ DS", "mes": 12, "ano": 2026}, {"id": 184, "data": "2026-12-17", "valor": 800.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Investimentos com AP", "mes": 12, "ano": 2026}, {"id": 185, "data": "2026-12-22", "valor": 319.08, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Celina", "descricao": "Seguro de vida/Prudential", "mes": 12, "ano": 2026}, {"id": 186, "data": "2026-12-22", "valor": 266.64, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "Seguro de vida/Prudential", "mes": 12, "ano": 2026}, {"id": 187, "data": "2026-12-26", "valor": 100.0, "tipo": "Previsão Gasto", "classificacao": "Fixo", "categoria": "Investimento", "forma": "Previsão", "gerador": "Tiago", "descricao": "FAELCE - Contribuição voluntaria", "mes": 12, "ano": 2026}];
+let DATA = [];
+const BRL = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const BRLk = v => 'R$ '+(Math.abs(v)>=1000?(v/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})+'k':v.toLocaleString('pt-BR',{maximumFractionDigits:0}));
+const MES=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const COLORS=['#1f7a5a','#b8442f','#2b5d7d','#c8821a','#6a4c93','#3a7d44','#a0522d','#456789','#8e7c4f','#5b8a72','#9b4f6a','#3d6e8c','#c46b3d','#74608f','#4a8c7a','#bf6a4a'];
+let charts={},flowMode='mensal',budMode='gasto',sortKey='data',sortDir=-1,budSort='prev',budDir=-1,searchTerm='';
+
+function setStatus(msg,flash){
+  const el=document.getElementById('status');
+  el.innerHTML='<b>●</b> '+DATA.length+' lançamentos<br>'+msg;
+  if(flash){el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');}
+}
+function toast(msg){const t=document.getElementById('toast');t.innerHTML='✓ '+msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3200);}
+
+const STORE_KEY='pcf_dados_v1';
+function saveData(fname){
+  try{
+    localStorage.setItem(STORE_KEY,JSON.stringify({
+      data:DATA, arquivo:fname||'planilha', quando:new Date().toISOString()
+    }));
+  }catch(e){console.warn('Não foi possível salvar localmente:',e);}
+}
+function loadSaved(){
+  try{
+    const raw=localStorage.getItem(STORE_KEY);
+    if(!raw)return null;
+    const obj=JSON.parse(raw);
+    if(obj&&Array.isArray(obj.data)&&obj.data.length)return obj;
+  }catch(e){console.warn('Não foi possível ler dados salvos:',e);}
+  return null;
+}
+function clearSaved(){
+  try{localStorage.removeItem(STORE_KEY);}catch(e){}
+  DATA=[];
+  setStatus('Painel zerado — clique em "Atualizar dados" para recarregar do Google',true);
+  toast('Memória limpa · painel zerado');
+  buildFilters();render();
+}
+
+// ===== Leitura automática do Google Sheets (CSV publicado) =====
+const GOOGLE_CSV_URL="https://docs.google.com/spreadsheets/d/e/2PACX-1vSaYiLIR1c-huoODCm2z2khwzBf6YwUn3xwYc2pAymECNzjjCQ3uTsoSiD6pw_8V4Zc_CVSJmNh_wP6/pub?output=csv";
+
+/* ►► COLE AQUI O LINK DO SEU FORMULÁRIO GOOGLE (entre as aspas) ◄◄ */
+const FORM_URL="https://docs.google.com/forms/d/e/1FAIpQLSfMxMtHSiL9sQp5uCkayCwkiiBYhReRa1JWHckuQ9GfGCsryg/viewform?usp=header";
+function abrirFormulario(){
+  if(!FORM_URL){
+    alert("O link do formulário ainda não foi configurado.\n\nAbra o arquivo index.html, encontre a linha FORM_URL=\"\" e cole o endereço do seu Google Forms entre as aspas.");
+    return;
+  }
+  window.open(FORM_URL,"_blank","noopener");
+}
+
+function switchTab(btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.tabpane').forEach(p=>p.classList.remove('on'));
+  btn.classList.add('on');
+  const pane=document.getElementById(btn.dataset.pane);
+  if(pane)pane.classList.add('on');
+  // Chart.js não desenha em painel oculto: força o redimensionamento dos gráficos visíveis
+  setTimeout(()=>{for(const k in charts){if(charts[k]){try{charts[k].resize()}catch(e){}}}},30);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// Parser de CSV que respeita aspas, vírgulas internas e quebras de linha
+function parseCSV(text){
+  const rows=[];let row=[],field='',inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){field+='"';i++;} else inQ=false; }
+      else field+=c;
+    }else{
+      if(c==='"')inQ=true;
+      else if(c===','){row.push(field);field='';}
+      else if(c==='\n'){row.push(field);rows.push(row);row=[];field='';}
+      else if(c==='\r'){/* ignora */}
+      else field+=c;
+    }
+  }
+  if(field.length||row.length){row.push(field);rows.push(row);}
+  return rows;
+}
+
+// Converte data em vários formatos para ISO (aaaa-mm-dd)
+function toISO(v){
+  if(v==null)return null;
+  v=String(v).trim();if(!v)return null;
+  // dd/mm/aaaa  ou  dd/mm/aaaa hh:mm:ss
+  let m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+  // aaaa-mm-dd (já ISO)
+  m=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
+  return null;
+}
+
+async function loadFromGoogle(silent){
+  if(!silent)toast('Buscando dados do Google...');
+  try{
+    const urlCache=GOOGLE_CSV_URL+(GOOGLE_CSV_URL.includes('?')?'&':'?')+'_t='+Date.now();
+    const resp=await fetch(urlCache,{cache:'no-store'});
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    const text=await resp.text();
+    const rows=parseCSV(text);
+    if(!rows.length)throw new Error('planilha vazia');
+    // localizar cabeçalho: linha que contém Valor e Tipo
+    let hr=-1;
+    for(let i=0;i<Math.min(rows.length,5);i++){
+      const r=rows[i].map(x=>String(x).trim());
+      if(r.includes('Valor')&&r.includes('Tipo')){hr=i;break;}
+    }
+    if(hr<0)hr=0;
+    const H=rows[hr].map(x=>String(x).trim());
+    const idx=n=>H.indexOf(n);
+    const out=[];
+    for(let i=hr+1;i<rows.length;i++){
+      const r=rows[i];if(!r||r.every(x=>!String(x).trim()))continue;
+      // Valor: aceita "R$ 1.234,56", "1.234,56", "1234.56", "30"
+      let raw=String(r[idx('Valor')]||'').trim().replace(/R\$/gi,'').replace(/\s/g,'');
+      if(raw.includes(',')&&raw.includes('.'))raw=raw.replace(/\./g,'').replace(',','.');
+      else if(raw.includes(','))raw=raw.replace(',','.');
+      const valor=parseFloat(raw);if(isNaN(valor))continue;
+      const ds=toISO(r[idx('Data')]);
+      let mes=null,ano=null;
+      if(ds){mes=+ds.slice(5,7);ano=+ds.slice(0,4);}
+      out.push({data:ds,valor:valor,tipo:String(r[idx('Tipo')]||'').trim(),
+        classificacao:String(r[idx('Classificação')]||'').trim(),
+        categoria:String(r[idx('Categoria')]||'').trim(),
+        forma:String(r[idx('Forma de Pagamento')]||'').trim(),
+        gerador:String(r[idx('Gerador da Despesa')]||'').trim(),
+        descricao:String(r[idx('Descrição')]||''),mes:mes,ano:ano,
+        linha:i+1});
+    }
+    if(!out.length)throw new Error('nenhum lançamento válido');
+    DATA=out;
+    saveData('Google Sheets (online)');
+    setStatus('Atualizado do Google: '+new Date().toLocaleString('pt-BR')+' · '+out.length+' lançamentos',true);
+    toast('Dados atualizados · '+out.length+' lançamentos');
+    buildFilters();render();
+    return true;
+  }catch(e){
+    if(!silent){
+      setStatus('Não foi possível atualizar do Google ('+e.message+'). Verifique a conexão e tente novamente.',true);
+      toast('Falha ao buscar do Google');
+    }
+    return false;
+  }
+}
+
+function parseWorkbook(ab,fname){
+  try{
+    const wb=XLSX.read(ab,{type:'array',cellDates:true});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true});
+    let hr=-1;
+    for(let i=0;i<Math.min(rows.length,8);i++){
+      const r=(rows[i]||[]).map(x=>String(x).trim());
+      if(r.includes('Tipo')&&r.includes('Valor')){hr=i;break;}
+    }
+    if(hr<0){alert('Não encontrei o cabeçalho esperado (colunas "Tipo" e "Valor"). Verifique se é a planilha do formulário.');return;}
+    const H=rows[hr].map(x=>String(x).trim());
+    const idx=n=>H.indexOf(n);
+    const out=[];
+    for(let i=hr+1;i<rows.length;i++){
+      const r=rows[i];if(!r||r.length===0)continue;
+      const valor=parseFloat(r[idx('Valor')]);if(isNaN(valor))continue;
+      let d=r[idx('Data')],ds=null;
+      if(d instanceof Date)ds=d.toISOString().slice(0,10);
+      else if(typeof d==='number'){const dt=new Date(Date.UTC(1899,11,30)+d*864e5);ds=dt.toISOString().slice(0,10);}
+      let mes=r[idx('Mês')],ano=r[idx('Ano')];
+      if((mes==null||mes==='')&&ds){mes=+ds.slice(5,7);}
+      if((ano==null||ano==='')&&ds){ano=+ds.slice(0,4);}
+      out.push({data:ds,valor:valor,tipo:String(r[idx('Tipo')]||'').trim(),
+        classificacao:String(r[idx('Classificação')]||'').trim(),
+        categoria:String(r[idx('Categoria')]||'').trim(),
+        forma:String(r[idx('Forma de Pagamento')]||'').trim(),
+        gerador:String(r[idx('Gerador da Despesa')]||'').trim(),
+        descricao:String(r[idx('Descrição')]||''),mes:mes,ano:ano,
+        linha:i+1});
+    }
+    if(out.length===0){alert('Nenhum lançamento válido foi encontrado na planilha.');return;}
+    DATA=out;
+    saveData(fname);
+    setStatus('Atualizado: '+new Date().toLocaleString('pt-BR'),true);
+    toast('Planilha atualizada · '+out.length+' lançamentos carregados');
+    buildFilters();render();
+  }catch(e){alert('Erro ao ler o arquivo: '+e.message);}
+}
+
+document.getElementById('file').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  f.arrayBuffer().then(ab=>parseWorkbook(ab,f.name));
+  e.target.value='';
+});
+const dz=document.getElementById('dz');
+window.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('show')});
+dz.addEventListener('dragleave',e=>{if(e.target===dz)dz.classList.remove('show')});
+window.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('show');
+  const f=e.dataTransfer.files[0];if(f)f.arrayBuffer().then(ab=>parseWorkbook(ab,f.name))});
+
+function uniq(k){return [...new Set(DATA.map(d=>d[k]).filter(x=>x!=null&&x!==''))];}
+function periodKey(d){return d.ano+'-'+String(d.mes).padStart(2,'0');}
+
+function buildFilters(){
+  const fill=(id,vals,all)=>{const s=document.getElementById(id);const cur=s.value;
+    s.innerHTML='<option value="">'+all+'</option>'+vals.sort().map(v=>`<option>${v}</option>`).join('');
+    if([...s.options].some(o=>o.value===cur))s.value=cur;};
+  const periods=[...new Set(DATA.map(periodKey))].sort();
+  const fm=document.getElementById('f-mes');const cur=fm.value;
+  fm.innerHTML='<option value="">Todos os meses</option>'+periods.map(p=>{const[a,m]=p.split('-');return `<option value="${p}">${MES[+m]}/${a}</option>`}).join('');
+  if([...fm.options].some(o=>o.value===cur))fm.value=cur;
+  fill('f-tipo',uniq('tipo'),'Todos os tipos');
+  fill('f-cat',uniq('categoria'),'Todas as categorias');
+  fill('f-class',uniq('classificacao'),'Todas');
+  fill('f-ger',uniq('gerador'),'Todos');
+  fill('f-forma',uniq('forma'),'Todas as formas');
+}
+['f-mes','f-tipo','f-cat','f-class','f-ger','f-forma'].forEach(id=>document.getElementById(id).addEventListener('change',render));
+document.getElementById('search').addEventListener('input',e=>{searchTerm=e.target.value.toLowerCase();renderTable();});
+function resetFilters(){['f-mes','f-tipo','f-cat','f-class','f-ger','f-forma'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('search').value='';searchTerm='';render();}
+
+function getFiltered(){
+  const mes=document.getElementById('f-mes').value,tipo=document.getElementById('f-tipo').value,
+    cat=document.getElementById('f-cat').value,cls=document.getElementById('f-class').value,
+    ger=document.getElementById('f-ger').value,forma=document.getElementById('f-forma').value;
+  return DATA.filter(d=>(!mes||periodKey(d)===mes)&&(!tipo||d.tipo===tipo)&&(!cat||d.categoria===cat)&&
+    (!cls||d.classificacao===cls)&&(!ger||d.gerador===ger)&&(!forma||d.forma===forma));
+}
+// Para orçamento, ignoramos o filtro de TIPO (pois precisamos de previsto E real juntos)
+function getBudgetScope(){
+  const mes=document.getElementById('f-mes').value,cat=document.getElementById('f-cat').value,
+    cls=document.getElementById('f-class').value,ger=document.getElementById('f-ger').value;
+  return DATA.filter(d=>(!mes||periodKey(d)===mes)&&(!cat||d.categoria===cat)&&(!cls||d.classificacao===cls)&&(!ger||d.gerador===ger));
+}
+function sum(arr,f=d=>d.valor){return arr.reduce((s,d)=>s+f(d),0);}
+function grp(arr,key){const m={};arr.forEach(d=>{const k=d[key]||'—';m[k]=(m[k]||0)+d.valor});return m;}
+function destroy(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+Chart.defaults.font.family="Inter,sans-serif";Chart.defaults.font.size=11;Chart.defaults.color='#6b6557';
+
+function render(){renderKPIs();renderBudget();renderFlow();renderCat();renderClass();renderGer();renderForma();renderInsights();renderTable();}
+
+function renderKPIs(){
+  const f=getFiltered();
+  const ent=f.filter(d=>d.tipo==='Entrada Real'),sai=f.filter(d=>d.tipo==='Saída Real');
+  const pg=f.filter(d=>d.tipo==='Previsão Gasto'),pp=f.filter(d=>d.tipo==='Previsão Provento');
+  const tEnt=sum(ent),tSai=sum(sai),saldo=tEnt-tSai,taxa=tEnt>0?saldo/tEnt*100:0;
+  const k=[
+    {c:'k-in',l:'Entradas reais',v:BRL(tEnt),m:ent.length+' lançamentos'},
+    {c:'k-out',l:'Saídas reais',v:BRL(tSai),m:sai.length+' lançamentos'},
+    {c:'k-bal',l:'Saldo do recorte',v:BRL(saldo),m:(saldo>=0?'▲ superávit · ':'▼ déficit · ')+taxa.toFixed(0)+'% poupado',mc:saldo>=0?'pos':'neg'},
+    {c:'k-fore',l:'Previsão de gasto',v:BRL(sum(pg)),m:pg.length+' itens previstos'},
+    {c:'k-count',l:'Previsão de provento',v:BRL(sum(pp)),m:pp.length+' itens previstos'}];
+  document.getElementById('kpis').innerHTML=k.map(x=>`<div class="kpi ${x.c}"><div class="lbl">${x.l}</div><div class="val">${x.v}</div><div class="meta ${x.mc||''}">${x.m}</div></div>`).join('');
+}
+
+// ---- ORÇAMENTO ----
+function budgetRows(){
+  const scope=getBudgetScope();
+  const prevType=budMode==='gasto'?'Previsão Gasto':'Previsão Provento';
+  const realType=budMode==='gasto'?'Saída Real':'Entrada Real';
+  const cats=[...new Set(scope.filter(d=>d.tipo===prevType||d.tipo===realType).map(d=>d.categoria))];
+  const rows=cats.map(cat=>{
+    const prev=sum(scope.filter(d=>d.categoria===cat&&d.tipo===prevType));
+    const real=sum(scope.filter(d=>d.categoria===cat&&d.tipo===realType));
+    const dif=prev-real;
+    const util=prev>0?real/prev*100:(real>0?Infinity:0);
+    let status;
+    if(prev===0&&real>0)status='none';
+    else if(util>105)status='over';
+    else if(util>=80)status='warn';
+    else status='ok';
+    return{cat,prev,real,dif,util,status};
+  });
+  return rows;
+}
+function renderBudget(){
+  const rows=budgetRows();
+  const tPrev=sum(rows,r=>r.prev),tReal=sum(rows,r=>r.real),tDif=tPrev-tReal;
+  const tUtil=tPrev>0?tReal/tPrev*100:0;
+  const isG=budMode==='gasto';
+  document.getElementById('b-prev').textContent=BRL(tPrev);
+  document.getElementById('b-prev-m').textContent=(isG?'gastos':'proventos')+' previstos';
+  document.getElementById('b-real').textContent=BRL(tReal);
+  document.getElementById('b-real-m').textContent=(isG?'gastos':'proventos')+' realizados';
+  const dEl=document.getElementById('b-dif');dEl.textContent=BRL(tDif);
+  const dm=document.getElementById('b-dif-m');
+  if(isG){dm.textContent=tDif>=0?'✓ dentro do previsto':'✗ acima do previsto';dm.className='meta '+(tDif>=0?'pos':'neg');}
+  else{dm.textContent=tDif<=0?'✓ recebeu o previsto':'✗ abaixo do previsto';dm.className='meta '+(tDif<=0?'pos':'neg');}
+  document.getElementById('b-util').textContent=tUtil.toFixed(0)+'%';
+  document.getElementById('b-util-m').textContent=isG?'do orçamento de gasto usado':'do provento previsto recebido';
+
+  // tabela
+  const sorted=[...rows].sort((a,b)=>{let x=a[budSort],y=b[budSort];
+    if(budSort==='cat'||budSort==='status')return String(x).localeCompare(String(y))*budDir;
+    if(x===Infinity)x=1e15;if(y===Infinity)y=1e15;return(x-y)*budDir;});
+  const stLbl={ok:isG?'No alvo':'No alvo',warn:'Atenção',over:isG?'Estourou':'Acima',none:'Sem previsão'};
+  document.getElementById('bud-body').innerHTML=sorted.map(r=>{
+    const pct=r.util===Infinity?100:Math.min(r.util,100);
+    const barColor=r.status==='over'?'var(--red)':r.status==='warn'?'var(--amber)':r.status==='none'?'var(--muted)':'var(--green)';
+    const utilTxt=r.util===Infinity?'sem prev.':r.util.toFixed(0)+'%';
+    return `<tr>
+      <td><b>${r.cat}</b></td>
+      <td class="num">${r.prev>0?BRL(r.prev):'—'}</td>
+      <td class="num">${r.real>0?BRL(r.real):'—'}</td>
+      <td class="num" style="color:${(isG?r.dif>=0:r.dif<=0)?'var(--green)':'var(--red)'}">${BRL(r.dif)}</td>
+      <td class="num">${utilTxt}</td>
+      <td class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${barColor}"></div></div></td>
+      <td><span class="st ${r.status}">${stLbl[r.status]}</span></td>
+    </tr>`;}).join('');
+  document.getElementById('bud-foot').innerHTML=`<tr>
+    <td>TOTAL</td><td class="num">${BRL(tPrev)}</td><td class="num">${BRL(tReal)}</td>
+    <td class="num" style="color:${(isG?tDif>=0:tDif<=0)?'var(--green)':'var(--red)'}">${BRL(tDif)}</td>
+    <td class="num">${tUtil.toFixed(0)}%</td><td></td><td></td></tr>`;
+
+  // gráfico barras categoria
+  destroy('c-budget');
+  const top=[...rows].sort((a,b)=>(b.prev+b.real)-(a.prev+a.real)).slice(0,9);
+  charts['c-budget']=new Chart(document.getElementById('c-budget'),{type:'bar',
+    data:{labels:top.map(r=>r.cat),datasets:[
+      {label:'Previsto',data:top.map(r=>r.prev),backgroundColor:'#c8821a',borderRadius:3},
+      {label:'Realizado',data:top.map(r=>r.real),backgroundColor:isG?'#b8442f':'#1f7a5a',borderRadius:3}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:12}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.x)}}},
+      scales:{x:{ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'}},y:{grid:{display:false}}}}});
+
+  // gráfico mês a mês (ignora filtro de mês para mostrar a série toda)
+  destroy('c-budmonth');
+  const prevType=isG?'Previsão Gasto':'Previsão Provento';
+  const realType=isG?'Saída Real':'Entrada Real';
+  const cat=document.getElementById('f-cat').value,cls=document.getElementById('f-class').value,ger=document.getElementById('f-ger').value;
+  const base=DATA.filter(d=>(!cat||d.categoria===cat)&&(!cls||d.classificacao===cls)&&(!ger||d.gerador===ger));
+  const periods=[...new Set(base.map(periodKey))].sort();
+  const lbl=periods.map(p=>{const[a,m]=p.split('-');return MES[+m]+'/'+a.slice(2)});
+  const prevSeries=periods.map(p=>sum(base.filter(d=>periodKey(d)===p&&d.tipo===prevType)));
+  const realSeries=periods.map(p=>sum(base.filter(d=>periodKey(d)===p&&d.tipo===realType)));
+  charts['c-budmonth']=new Chart(document.getElementById('c-budmonth'),{type:'bar',
+    data:{labels:lbl,datasets:[
+      {label:'Previsto',data:prevSeries,backgroundColor:'#c8821a',borderRadius:3},
+      {label:'Realizado',data:realSeries,backgroundColor:isG?'#b8442f':'#1f7a5a',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:12}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.y)}}},
+      scales:{y:{ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'}},x:{grid:{display:false}}}}});
+}
+document.getElementById('bud-seg').addEventListener('click',e=>{
+  if(e.target.dataset.m){budMode=e.target.dataset.m;
+    [...e.currentTarget.children].forEach(b=>b.classList.toggle('on',b===e.target));renderBudget();}});
+document.querySelectorAll('#bud-tbl thead th').forEach(th=>th.addEventListener('click',()=>{
+  const k=th.dataset.k;if(!k)return;if(budSort===k)budDir*=-1;else{budSort=k;budDir=1;}renderBudget();}));
+
+// ---- FLUXO ----
+function renderFlow(){
+  destroy('c-flow');const f=getFiltered();
+  const periods=[...new Set(DATA.map(periodKey))].sort();
+  const lbl=periods.map(p=>{const[a,m]=p.split('-');return MES[+m]+'/'+a.slice(2)});
+  const ent=periods.map(p=>sum(f.filter(d=>periodKey(d)===p&&d.tipo==='Entrada Real')));
+  const sai=periods.map(p=>sum(f.filter(d=>periodKey(d)===p&&d.tipo==='Saída Real')));
+  const ctx=document.getElementById('c-flow');
+  if(flowMode==='mensal'){
+    charts['c-flow']=new Chart(ctx,{type:'bar',data:{labels:lbl,datasets:[
+      {label:'Entradas',data:ent,backgroundColor:'#1f7a5a',borderRadius:4},
+      {label:'Saídas',data:sai,backgroundColor:'#b8442f',borderRadius:4},
+      {label:'Saldo',data:periods.map((p,i)=>ent[i]-sai[i]),type:'line',borderColor:'#2b5d7d',backgroundColor:'#2b5d7d',tension:.3,borderWidth:2.5,pointRadius:3,fill:false}]},options:flowOpts()});
+  }else{let acc=0;const cum=periods.map((p,i)=>{acc+=ent[i]-sai[i];return acc});
+    charts['c-flow']=new Chart(ctx,{type:'line',data:{labels:lbl,datasets:[
+      {label:'Saldo acumulado',data:cum,borderColor:'#2b5d7d',backgroundColor:'rgba(43,93,125,.12)',tension:.3,borderWidth:2.5,pointRadius:3,fill:true}]},options:flowOpts()});}
+}
+function flowOpts(){return{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+  plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:14}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.y)}}},
+  scales:{y:{ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'}},x:{grid:{display:false}}}};}
+document.getElementById('flow-seg').addEventListener('click',e=>{if(e.target.dataset.m){flowMode=e.target.dataset.m;
+  [...e.currentTarget.children].forEach(b=>b.classList.toggle('on',b===e.target));renderFlow();}});
+
+function renderCat(){
+  destroy('c-cat');const sai=getFiltered().filter(d=>d.tipo==='Saída Real');const g=grp(sai,'categoria');
+  const e=Object.entries(g).sort((a,b)=>b[1]-a[1]);
+  charts['c-cat']=new Chart(document.getElementById('c-cat'),{type:'doughnut',
+    data:{labels:e.map(x=>x[0]),datasets:[{data:e.map(x=>x[1]),backgroundColor:e.map((x,i)=>COLORS[i%COLORS.length]),borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'58%',
+      plugins:{legend:{position:'right',labels:{boxWidth:10,padding:7,font:{size:10}}},
+        tooltip:{callbacks:{label:c=>c.label+': '+BRL(c.parsed)+' ('+(c.parsed/sum(sai)*100).toFixed(0)+'%)'}}}}});
+}
+function renderClass(){
+  destroy('c-class');const sai=getFiltered().filter(d=>d.tipo==='Saída Real');const g=grp(sai,'classificacao');
+  charts['c-class']=new Chart(document.getElementById('c-class'),{type:'doughnut',
+    data:{labels:Object.keys(g),datasets:[{data:Object.values(g),backgroundColor:['#2b5d7d','#c8821a'],borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{legend:{position:'bottom',labels:{boxWidth:11,padding:12}},
+        tooltip:{callbacks:{label:c=>c.label+': '+BRL(c.parsed)+' ('+(c.parsed/sum(sai)*100).toFixed(0)+'%)'}}}}});
+}
+function renderGer(){
+  destroy('c-ger');const sai=getFiltered().filter(d=>d.tipo==='Saída Real');const g=grp(sai,'gerador');
+  const e=Object.entries(g).sort((a,b)=>b[1]-a[1]);
+  charts['c-ger']=new Chart(document.getElementById('c-ger'),{type:'bar',
+    data:{labels:e.map(x=>x[0]),datasets:[{data:e.map(x=>x[1]),backgroundColor:e.map((x,i)=>COLORS[i%COLORS.length]),borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>BRL(c.parsed.y)}}},
+      scales:{y:{ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'}},x:{grid:{display:false}}}}});
+}
+function renderForma(){
+  destroy('c-forma');const sai=getFiltered().filter(d=>d.tipo==='Saída Real');const g=grp(sai,'forma');
+  const e=Object.entries(g).sort((a,b)=>b[1]-a[1]);
+  charts['c-forma']=new Chart(document.getElementById('c-forma'),{type:'bar',
+    data:{labels:e.map(x=>x[0]),datasets:[{data:e.map(x=>x[1]),backgroundColor:'#1f7a5a',borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>BRL(c.parsed.x)}}},
+      scales:{x:{ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'}},y:{grid:{display:false}}}}});
+}
+function renderInsights(){
+  const f=getFiltered();const sai=f.filter(d=>d.tipo==='Saída Real');const ent=f.filter(d=>d.tipo==='Entrada Real');
+  const ins=[];
+  if(sai.length){const g=grp(sai,'categoria');const top=Object.entries(g).sort((a,b)=>b[1]-a[1])[0];
+    ins.push({ic:'🎯',t:`Maior gasto em <b>${top[0]}</b>: ${BRL(top[1])} (${(top[1]/sum(sai)*100).toFixed(0)}% das saídas).`});
+    const maior=sai.reduce((a,b)=>b.valor>a.valor?b:a);
+    ins.push({ic:'💸',t:`Maior lançamento: <b>${BRL(maior.valor)}</b> — ${maior.descricao||maior.categoria}.`});
+    const fixo=sum(sai.filter(d=>d.classificacao==='Fixo'));
+    ins.push({ic:'⚖️',t:`Custos fixos: <b>${(fixo/sum(sai)*100).toFixed(0)}%</b> das saídas reais.`});}
+  if(ent.length){const tx=(sum(ent)-sum(sai))/sum(ent)*100;
+    ins.push({ic:tx>=0?'📈':'📉',t:`Taxa de poupança: <b>${tx.toFixed(0)}%</b> das entradas.`});}
+  const pg=sum(f.filter(d=>d.tipo==='Previsão Gasto'));
+  if(pg>0){const real=sum(sai);const dif=pg-real;
+    ins.push({ic:'🔮',t:`Gasto realizado: <b>${BRL(real)}</b> de ${BRL(pg)} previstos (${dif>=0?'dentro':'acima'} do previsto).`});}
+  document.getElementById('insights').innerHTML=ins.length?ins.map(i=>`<div class="ins" style="flex:1;min-width:240px"><span class="ic">${i.ic}</span><span class="tx">${i.t}</span></div>`).join(''):'<div class="ins"><span class="tx">Sem dados para o recorte selecionado.</span></div>';
+}
+function renderTable(){
+  let f=getFiltered();
+  if(searchTerm)f=f.filter(d=>(d.descricao+' '+d.categoria+' '+d.gerador+' '+d.forma+' '+(d.linha||'')).toLowerCase().includes(searchTerm));
+  f=[...f].sort((a,b)=>{let x=a[sortKey],y=b[sortKey];if(sortKey==='valor'||sortKey==='linha')return((x||0)-(y||0))*sortDir;return String(x).localeCompare(String(y))*sortDir;});
+  const tag=t=>t.includes('Entrada')||t.includes('Provento')&&t.includes('Real')?'in':t.includes('Previsão')?'fore':t.includes('Entrada')?'in':'out';
+  document.getElementById('tbody').innerHTML=f.slice(0,600).map(d=>`<tr>
+    <td class="num" style="font-variant-numeric:tabular-nums">${d.linha?`<button class="linha-btn" onclick="abrirEditor(${d.linha})" title="Corrigir esta linha">${d.linha} ✎</button>`:'—'}</td>
+    <td>${d.data?d.data.split('-').reverse().join('/'):'—'}</td>
+    <td><span class="tag ${tag(d.tipo)}">${d.tipo}</span></td>
+    <td>${d.categoria||'—'}</td><td>${d.classificacao||'—'}</td>
+    <td>${d.gerador||'—'}</td><td>${d.forma||'—'}</td>
+    <td>${d.descricao||'—'}</td><td class="num">${d.valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td></tr>`).join('');
+  document.getElementById('tbl-count').textContent='· '+f.length+' registros'+(f.length>600?' (exibindo 600)':'');
+}
+document.querySelectorAll('#tbl thead th').forEach(th=>th.addEventListener('click',()=>{const k=th.dataset.k;if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=1;}renderTable();}));
+
+function exportCSV(){
+  const f=getFiltered();const head=['Data','Tipo','Categoria','Classificacao','Responsavel','Pagamento','Descricao','Valor'];
+  const rows=f.map(d=>[d.data,d.tipo,d.categoria,d.classificacao,d.gerador,d.forma,'"'+(d.descricao||'').replace(/"/g,'""')+'"',d.valor]);
+  const csv=[head.join(','),...rows.map(r=>r.join(','))].join('\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='controle_financeiro_filtrado.csv';a.click();
+}
+
+const _saved=loadSaved();
+if(_saved){
+  DATA=_saved.data;
+  const q=new Date(_saved.quando).toLocaleString('pt-BR');
+  setStatus('Mostrando dados salvos ('+q+'). Buscando atualização do Google...',true);
+}else{
+  DATA=[];setStatus('Carregando dados do Google...');
+}
+buildFilters();render();
+// ===== EDITOR + NOVO LANÇAMENTO (grava via Web App) =====
+const WEBAPP_URL="https://script.google.com/macros/s/AKfycby-S8HYmQt81iKtZPZQVrMEc9SIqh_KuFhrq9D2XCCnJlFNGTxFUepiXaun4R4nZ4Zt/exec";
+const WEBAPP_CHAVE="Pico-no-teste";
+
+// Definição dos campos. tipoCampo: 'ro'(travado) | 'texto' | 'lista' | 'listaNova'
+// 'lista' = só escolhe das opções existentes. 'listaNova' = escolhe ou cria nova.
+const CAMPOS=[
+  {k:'carimbo',       label:'Carimbo de data/hora', tipo:'ro'},
+  {k:'data',          label:'Data (dd/mm/aaaa)',    tipo:'texto'},
+  {k:'valor',         label:'Valor (ex: 103,40)',   tipo:'texto'},
+  {k:'tipo',          label:'Tipo',                 tipo:'lista',     campo:'tipo'},
+  {k:'classificacao', label:'Classificação',        tipo:'lista',     campo:'classificacao'},
+  {k:'categoria',     label:'Categoria',            tipo:'listaNova', campo:'categoria'},
+  {k:'forma',         label:'Forma de Pagamento',   tipo:'listaNova', campo:'forma'},
+  {k:'gerador',       label:'Gerador da Despesa',   tipo:'listaNova', campo:'gerador'},
+  {k:'descricao',     label:'Descrição',            tipo:'texto'}
+];
+let editLinhaAtual=null; // null = modo "novo lançamento"; número = correção
+
+function regDaLinha(n){ return DATA.find(d=>d.linha===n)||null; }
+
+// opções únicas existentes na planilha para um campo
+function opcoesDe(campo){
+  const set=new Set();
+  DATA.forEach(d=>{ const v=(d[campo]||'').toString().trim(); if(v)set.add(v); });
+  return [...set].sort((a,b)=>a.localeCompare(b));
+}
+
+// monta o HTML de um campo conforme o tipo, já com valor atual selecionado
+function htmlCampo(c, valorAtual){
+  const val=String(valorAtual==null?'':valorAtual).replace(/"/g,'&quot;');
+  if(c.tipo==='ro'){
+    return `<label>${c.label}</label><input class="mc" id="m-${c.k}" value="${val}" readonly>`;
+  }
+  if(c.tipo==='texto'){
+    return `<label>${c.label}</label><input class="mc" id="m-${c.k}" value="${val}">`;
+  }
+  // listas
+  const ops=opcoesDe(c.campo);
+  let optionsHtml=`<option value="">— selecione —</option>`;
+  let achou=false;
+  ops.forEach(o=>{
+    const sel=(o===valorAtual)?' selected':''; if(sel)achou=true;
+    optionsHtml+=`<option value="${o.replace(/"/g,'&quot;')}"${sel}>${o}</option>`;
+  });
+  if(c.tipo==='listaNova'){
+    optionsHtml+=`<option value="__NOVA__">➕ Nova...</option>`;
+  }
+  // se o valor atual não está entre as opções (ex.: dado antigo diferente), inclui ele
+  if(valorAtual && !achou){
+    optionsHtml=`<option value="${val}" selected>${val}</option>`+optionsHtml;
+  }
+  let h=`<label>${c.label}</label>`;
+  h+=`<select class="mc" id="m-${c.k}" onchange="checarNova('${c.k}')">${optionsHtml}</select>`;
+  // campo extra para digitar nova opção (escondido até escolher "Nova...")
+  if(c.tipo==='listaNova'){
+    h+=`<input class="mc" id="m-${c.k}-nova" placeholder="Digite a nova ${c.label.toLowerCase()}" style="display:none;margin-top:6px">`;
+  }
+  return h;
+}
+
+// mostra/esconde o campo de "nova opção"
+function checarNova(k){
+  const sel=document.getElementById('m-'+k);
+  const novo=document.getElementById('m-'+k+'-nova');
+  if(!novo)return;
+  if(sel.value==='__NOVA__'){ novo.style.display='block'; novo.focus(); }
+  else { novo.style.display='none'; novo.value=''; }
+}
+
+// lê o valor final de um campo (resolve lista + "nova opção")
+function valorCampo(c){
+  const el=document.getElementById('m-'+c.k);
+  if(!el)return '';
+  if(c.tipo==='listaNova' && el.value==='__NOVA__'){
+    const novo=document.getElementById('m-'+c.k+'-nova');
+    return novo?novo.value.trim():'';
+  }
+  return el.value;
+}
+
+// abre em modo CORREÇÃO
+function abrirEditor(numLinha){
+  const reg=regDaLinha(numLinha);
+  if(!reg){ alert('Registro da linha '+numLinha+' não encontrado nos dados carregados.'); return; }
+  editLinhaAtual=numLinha;
+  document.querySelector('.modal h3').textContent='✎ Corrigir lançamento';
+  document.getElementById('m-sub').textContent='Linha '+numLinha+' · ao salvar, grava direto na planilha';
+  const dataBR = reg.data ? reg.data.split('-').reverse().join('/') : '';
+  const valorBR = (reg.valor!=null) ? reg.valor.toLocaleString('pt-BR',{minimumFractionDigits:2}) : '';
+  const atuais={carimbo:'(preservado)', data:dataBR, valor:valorBR, tipo:reg.tipo||'',
+    classificacao:reg.classificacao||'', categoria:reg.categoria||'', forma:reg.forma||'',
+    gerador:reg.gerador||'', descricao:reg.descricao||''};
+  document.getElementById('m-campos').innerHTML=CAMPOS.map(c=>htmlCampo(c,atuais[c.k])).join('');
+  setMStatus('','');
+  document.getElementById('m-salvar').disabled=false;
+  document.getElementById('modal-bg').classList.add('show');
+}
+
+// abre em modo NOVO LANÇAMENTO
+function abrirNovo(){
+  editLinhaAtual=null;
+  document.querySelector('.modal h3').textContent='➕ Novo lançamento';
+  document.getElementById('m-sub').textContent='Preencha os campos · o carimbo de data/hora é gerado automaticamente';
+  const hoje=new Date();
+  const dataHoje=String(hoje.getDate()).padStart(2,'0')+'/'+String(hoje.getMonth()+1).padStart(2,'0')+'/'+hoje.getFullYear();
+  const vazios={carimbo:'(gerado automaticamente)', data:dataHoje, valor:'', tipo:'',
+    classificacao:'', categoria:'', forma:'', gerador:'', descricao:''};
+  document.getElementById('m-campos').innerHTML=CAMPOS.map(c=>htmlCampo(c,vazios[c.k])).join('');
+  setMStatus('','');
+  document.getElementById('m-salvar').disabled=false;
+  document.getElementById('modal-bg').classList.add('show');
+}
+
+function fecharEditor(){
+  document.getElementById('modal-bg').classList.remove('show');
+  editLinhaAtual=null;
+}
+
+function salvarEdicao(){
+  // monta array de 9 posições na ordem das colunas
+  const valores=CAMPOS.map(c=>valorCampo(c));
+
+  // validação simples no cliente
+  if(!valores[1] || !valores[2]){
+    setMStatus('✗ Preencha ao menos Data e Valor.', 'var(--red)'); return;
+  }
+
+  const ehNovo=(editLinhaAtual==null);
+  setMStatus(ehNovo?'Adicionando...':'Salvando...', 'var(--muted)');
+  document.getElementById('m-salvar').disabled=true;
+
+  const corpo = ehNovo
+    ? {acao:'inserir', chave:WEBAPP_CHAVE, valores:valores}
+    : {chave:WEBAPP_CHAVE, linha:editLinhaAtual, valores:valores};
+
+  fetch(WEBAPP_URL,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify(corpo)
+  })
+  .then(r=>r.json())
+  .then(res=>{
+    if(res.ok){
+      setMStatus('✓ '+res.msg+' Aguardando o Google atualizar...', 'var(--green)');
+      setTimeout(()=>{
+        loadFromGoogle(true).then(()=>{
+          setMStatus('✓ '+(ehNovo?'Lançamento adicionado.':'Correção salva.')+' Se ainda não aparecer, aguarde alguns segundos e clique em "Atualizar dados".', 'var(--green)');
+          setTimeout(()=>{ loadFromGoogle(true); }, 4000);
+          setTimeout(fecharEditor, 1800);
+        });
+      }, 3000);
+    } else {
+      setMStatus('✗ '+res.msg, 'var(--red)');
+      document.getElementById('m-salvar').disabled=false;
+    }
+  })
+  .catch(err=>{
+    setMStatus('✗ Falha ao salvar: '+err.message, 'var(--red)');
+    document.getElementById('m-salvar').disabled=false;
+  });
+}
+
+function setMStatus(t,cor){
+  const s=document.getElementById('mstatus');
+  s.textContent=t; s.style.color=cor||'var(--ink)';
+}
+
+document.getElementById('modal-bg').addEventListener('click',e=>{
+  if(e.target===document.getElementById('modal-bg'))fecharEditor();
+});
+
+// ===== Busca automática dos dados mais recentes do Google ao abrir
+loadFromGoogle(true);
+</script>
+</body>
+</html>
