@@ -53,6 +53,9 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans
 .btn.form{background:var(--blue);border-color:var(--blue);color:#fff}
 .btn.form:hover{filter:brightness(1.08)}
 .btn-divider{width:1px;height:26px;background:var(--line);margin:0 2px;align-self:center}
+/* Matriz 2x3 dos botões de ação */
+.actgrid{display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:8px}
+.actgrid .btn{width:100%}
 /* Navegação por abas — barra inferior fixa estilo app */
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:70;display:flex;gap:6px;justify-content:center;
   background:var(--paper);border-top:2px solid var(--ink);padding:8px 16px;
@@ -224,13 +227,17 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
 .linha-btn:hover{background:var(--green);color:#fff}
 /* Modal editor */
 .modal-bg{position:fixed;inset:0;background:rgba(13,27,30,.55);z-index:200;display:none;
-  align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto}
+  align-items:flex-start;justify-content:center;padding:32px 16px;overflow-y:auto}
 .modal-bg.show{display:flex}
-.modal{background:var(--panel);border-radius:16px;max-width:480px;width:100%;
-  box-shadow:0 18px 60px rgba(0,0,0,.3);padding:22px 24px}
+.modal{background:var(--panel);border-radius:16px;max-width:680px;width:100%;
+  box-shadow:0 18px 60px rgba(0,0,0,.3);padding:24px 26px}
 .modal h3{font-size:18px;margin:0 0 4px;color:var(--ink)}
-.modal .sub{font-size:12px;color:var(--muted);margin-bottom:16px}
-.modal label{display:block;font-weight:700;font-size:11.5px;margin:10px 0 3px;color:var(--ink)}
+.modal .sub{font-size:12px;color:var(--muted);margin-bottom:18px}
+/* grid de 2 colunas para os campos */
+#m-campos{display:grid;grid-template-columns:1fr 1fr;gap:12px 18px}
+.mcell{display:flex;flex-direction:column;min-width:0}
+.mcell.full{grid-column:1 / -1}
+.modal label{display:block;font-weight:700;font-size:11.5px;margin:0 0 4px;color:var(--ink)}
 .modal input.mc{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line);
   border-radius:8px;font-size:13px;font-family:inherit;background:#fff;color:var(--ink)}
 .modal input.mc:focus{outline:none;border-color:var(--green)}
@@ -238,12 +245,13 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
   border-radius:8px;font-size:13px;font-family:inherit;background:#fff;color:var(--ink);cursor:pointer}
 .modal select.mc:focus{outline:none;border-color:var(--green)}
 .modal input.mc[readonly]{background:#eee;color:#999}
-.modal .mrodape{margin-top:18px;display:flex;gap:8px}
+.modal .mrodape{margin-top:20px;display:flex;gap:8px}
 .modal .mbtn{padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700}
 .modal .mbtn.salvar{background:var(--green);color:#fff}
 .modal .mbtn.salvar:disabled{opacity:.5;cursor:default}
 .modal .mbtn.fechar{background:var(--line);color:var(--ink)}
 .modal #mstatus{margin-top:12px;font-size:12.5px;min-height:18px;font-weight:600}
+@media(max-width:560px){#m-campos{grid-template-columns:1fr}.mcell.full{grid-column:1}}
 </style>
 </head>
 <body>
@@ -266,12 +274,11 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
   <div class="brand">
     <h1>Painel <span>Doméstico</span></h1>
   </div>
-  <div class="actrow">
-    <input type="file" id="file" accept=".xlsx,.xls" style="display:none">
+  <input type="file" id="file" accept=".xlsx,.xls" style="display:none">
+  <div class="actrow actgrid">
     <button class="btn big" onclick="loadFromGoogle(false)">⟳ Atualizar dados</button>
     <button class="btn big" onclick="abrirNovo()" title="Adicionar um novo lançamento direto na planilha" style="background:var(--green);color:#fff">➕ Novo lançamento</button>
     <button class="btn form" onclick="abrirFormulario()" title="Abrir o formulário do Google para lançar novos dados">✎ Lançar no formulário</button>
-    <span class="btn-divider"></span>
     <button class="btn ghost" onclick="document.getElementById('file').click()" title="Carregar um arquivo manualmente">↑ Enviar planilha</button>
     <button class="btn ghost" onclick="exportCSV()">Exportar CSV</button>
     <button class="btn ghost" onclick="if(confirm('Zerar o painel (0 lançamentos)? Depois baixe do OneDrive e atualize a planilha.'))clearSaved()">Limpar memória</button>
@@ -1132,7 +1139,7 @@ const WEBAPP_CHAVE="Pico-no-teste";
 // Definição dos campos. tipoCampo: 'ro'(travado) | 'texto' | 'lista' | 'listaNova'
 // 'lista' = só escolhe das opções existentes. 'listaNova' = escolhe ou cria nova.
 const CAMPOS=[
-  {k:'carimbo',       label:'Carimbo de data/hora', tipo:'ro'},
+  {k:'carimbo',       label:'Carimbo de data/hora', tipo:'ro',        full:true},
   {k:'data',          label:'Data (dd/mm/aaaa)',    tipo:'texto'},
   {k:'valor',         label:'Valor (ex: 103,40)',   tipo:'texto'},
   {k:'tipo',          label:'Tipo',                 tipo:'lista',     campo:'tipo'},
@@ -1140,7 +1147,7 @@ const CAMPOS=[
   {k:'categoria',     label:'Categoria',            tipo:'listaNova', campo:'categoria'},
   {k:'forma',         label:'Forma de Pagamento',   tipo:'listaNova', campo:'forma'},
   {k:'gerador',       label:'Gerador da Despesa',   tipo:'listaNova', campo:'gerador'},
-  {k:'descricao',     label:'Descrição',            tipo:'texto'}
+  {k:'descricao',     label:'Descrição',            tipo:'texto',     full:true}
 ];
 let editLinhaAtual=null; // null = modo "novo lançamento"; número = correção
 
@@ -1156,34 +1163,34 @@ function opcoesDe(campo){
 // monta o HTML de um campo conforme o tipo, já com valor atual selecionado
 function htmlCampo(c, valorAtual){
   const val=String(valorAtual==null?'':valorAtual).replace(/"/g,'&quot;');
+  const cls='mcell'+(c.full?' full':'');
+  let inner;
   if(c.tipo==='ro'){
-    return `<label>${c.label}</label><input class="mc" id="m-${c.k}" value="${val}" readonly>`;
+    inner=`<label>${c.label}</label><input class="mc" id="m-${c.k}" value="${val}" readonly>`;
+  }else if(c.tipo==='texto'){
+    inner=`<label>${c.label}</label><input class="mc" id="m-${c.k}" value="${val}">`;
+  }else{
+    // listas
+    const ops=opcoesDe(c.campo);
+    let optionsHtml=`<option value="">— selecione —</option>`;
+    let achou=false;
+    ops.forEach(o=>{
+      const sel=(o===valorAtual)?' selected':''; if(sel)achou=true;
+      optionsHtml+=`<option value="${o.replace(/"/g,'&quot;')}"${sel}>${o}</option>`;
+    });
+    if(c.tipo==='listaNova'){
+      optionsHtml+=`<option value="__NOVA__">➕ Nova...</option>`;
+    }
+    if(valorAtual && !achou){
+      optionsHtml=`<option value="${val}" selected>${val}</option>`+optionsHtml;
+    }
+    inner=`<label>${c.label}</label>`;
+    inner+=`<select class="mc" id="m-${c.k}" onchange="checarNova('${c.k}')">${optionsHtml}</select>`;
+    if(c.tipo==='listaNova'){
+      inner+=`<input class="mc" id="m-${c.k}-nova" placeholder="Digite a nova ${c.label.toLowerCase()}" style="display:none;margin-top:6px">`;
+    }
   }
-  if(c.tipo==='texto'){
-    return `<label>${c.label}</label><input class="mc" id="m-${c.k}" value="${val}">`;
-  }
-  // listas
-  const ops=opcoesDe(c.campo);
-  let optionsHtml=`<option value="">— selecione —</option>`;
-  let achou=false;
-  ops.forEach(o=>{
-    const sel=(o===valorAtual)?' selected':''; if(sel)achou=true;
-    optionsHtml+=`<option value="${o.replace(/"/g,'&quot;')}"${sel}>${o}</option>`;
-  });
-  if(c.tipo==='listaNova'){
-    optionsHtml+=`<option value="__NOVA__">➕ Nova...</option>`;
-  }
-  // se o valor atual não está entre as opções (ex.: dado antigo diferente), inclui ele
-  if(valorAtual && !achou){
-    optionsHtml=`<option value="${val}" selected>${val}</option>`+optionsHtml;
-  }
-  let h=`<label>${c.label}</label>`;
-  h+=`<select class="mc" id="m-${c.k}" onchange="checarNova('${c.k}')">${optionsHtml}</select>`;
-  // campo extra para digitar nova opção (escondido até escolher "Nova...")
-  if(c.tipo==='listaNova'){
-    h+=`<input class="mc" id="m-${c.k}-nova" placeholder="Digite a nova ${c.label.toLowerCase()}" style="display:none;margin-top:6px">`;
-  }
-  return h;
+  return `<div class="${cls}">${inner}</div>`;
 }
 
 // mostra/esconde o campo de "nova opção"
