@@ -116,8 +116,17 @@ select,input[type=text]{font-family:inherit;font-size:13px;padding:7px 10px;bord
 .card .hint{font-size:11px;color:var(--muted);margin-bottom:14px}
 .col-12{grid-column:span 12}.col-8{grid-column:span 8}.col-7{grid-column:span 7}.col-6{grid-column:span 6}
 .col-5{grid-column:span 5}.col-4{grid-column:span 4}.col-3{grid-column:span 3}
+.rank-list{display:flex;flex-direction:column;gap:9px;margin-top:6px}
+.rank-row{position:relative;display:flex;align-items:center;justify-content:space-between;
+  padding:7px 11px;border-radius:8px;background:var(--green-soft);overflow:hidden;font-size:13px}
+.rank-row .bar{position:absolute;left:0;top:0;bottom:0;background:rgba(31,122,90,.16);z-index:0}
+.rank-row .nome{position:relative;z-index:1;font-weight:600;color:var(--ink);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;max-width:62%}
+.rank-row .val{position:relative;z-index:1;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums}
+.rank-row .pos{display:inline-block;width:20px;color:var(--muted);font-weight:700;font-size:11px}
 .chart-box{position:relative;flex:1;height:280px;min-height:240px;max-height:340px}
 .chart-box.tall{height:320px;min-height:300px;max-height:380px}
+.chart-box.xtall{height:440px;min-height:400px;max-height:520px}
 .seg{display:flex;gap:4px;background:var(--paper);border-radius:7px;padding:3px;font-size:11px}
 .seg button{border:none;background:none;padding:4px 9px;border-radius:5px;cursor:pointer;font-weight:600;color:var(--muted);font-family:inherit;font-size:11px}
 .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.1)}
@@ -337,7 +346,7 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
     </div>
     <div class="card col-7">
       <h3>Previsto × Realizado por categoria</h3>
-      <div class="hint">Barras lado a lado · ordenado pelo previsto</div>
+      <div class="hint">Barras lado a lado · realizado em verde (dentro do previsto) ou vermelho (estourou)</div>
       <div class="chart-box tall"><canvas id="c-budget"></canvas></div>
     </div>
     <div class="card col-5">
@@ -366,14 +375,14 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
       <div class="chart-box tall"><canvas id="c-flow"></canvas></div>
     </div>
     <div class="card col-4">
-      <h3>Despesas por categoria</h3>
-      <div class="hint">Apenas saídas reais do recorte atual</div>
-      <div class="chart-box tall"><canvas id="c-cat"></canvas></div>
-    </div>
-    <div class="card col-4">
       <h3>Fixo x Variável</h3>
       <div class="hint">Composição das saídas reais</div>
-      <div class="chart-box"><canvas id="c-class"></canvas></div>
+      <div class="chart-box tall"><canvas id="c-class"></canvas></div>
+    </div>
+    <div class="card col-12">
+      <h3>Despesas por categoria</h3>
+      <div class="hint">Saídas reais do recorte atual · da maior para a menor</div>
+      <div class="chart-box xtall"><canvas id="c-cat"></canvas></div>
     </div>
     <div class="card col-3" style="grid-column:span 3">
       <h3>Por responsável</h3>
@@ -384,6 +393,21 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
       <h3>Formas de pagamento</h3>
       <div class="hint">Saídas reais por meio de pagamento</div>
       <div class="chart-box"><canvas id="c-forma"></canvas></div>
+    </div>
+    <div class="card col-7">
+      <h3>Categoria × Responsável</h3>
+      <div class="hint">Quanto cada responsável gastou em cada categoria (saídas reais)</div>
+      <div class="chart-box tall"><canvas id="c-catger"></canvas></div>
+    </div>
+    <div class="card col-5">
+      <h3>Ranking de maiores gastos
+        <div class="seg" id="rank-seg">
+          <button data-r="categoria" class="on">Categoria</button>
+          <button data-r="descricao">Descrição</button>
+        </div>
+      </h3>
+      <div class="hint">Maiores saídas reais do recorte atual (Top 10)</div>
+      <div id="rank-list" class="rank-list"></div>
     </div>
   </div>
 </div>
@@ -804,7 +828,7 @@ function grp(arr,key){const m={};arr.forEach(d=>{const k=d[key]||'—';m[k]=(m[k
 function destroy(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 Chart.defaults.font.family="Inter,sans-serif";Chart.defaults.font.size=11;Chart.defaults.color='#6b6557';
 
-function render(){renderKPIs();renderBudget();renderFlow();renderCat();renderClass();renderGer();renderForma();renderInsights();renderTable();}
+function render(){renderKPIs();renderBudget();renderFlow();renderCat();renderClass();renderGer();renderForma();renderCatGer();renderRank();renderInsights();renderTable();}
 
 function renderKPIs(){
   const f=getFiltered();
@@ -879,16 +903,34 @@ function renderBudget(){
     <td class="num" style="color:${(isG?tDif>=0:tDif<=0)?'var(--green)':'var(--red)'}">${BRL(tDif)}</td>
     <td class="num">${tUtil.toFixed(0)}%</td><td></td><td></td></tr>`;
 
-  // gráfico barras categoria
+  // gráfico barras categoria — Previsto × Realizado, com cor por status
   destroy('c-budget');
-  const top=[...rows].sort((a,b)=>(b.prev+b.real)-(a.prev+a.real)).slice(0,9);
+  // ordena pelas categorias com maior movimento (previsto+realizado), até 12
+  const top=[...rows].sort((a,b)=>(b.prev+b.real)-(a.prev+a.real)).slice(0,12);
+  // cor do realizado: tons mais suaves. gasto: dentro=verde / estourou=vermelho.
+  const corReal=top.map(r=>{
+    if(isG){ return r.real>r.prev ? '#cf5b46' : '#2f8f6b'; }   // gasto: estourou=vermelho suave / dentro=verde suave
+    else   { return r.real>=r.prev ? '#2f8f6b' : '#d59a3c'; }  // provento: atingiu=verde / abaixo=âmbar
+  });
   charts['c-budget']=new Chart(document.getElementById('c-budget'),{type:'bar',
     data:{labels:top.map(r=>r.cat),datasets:[
-      {label:'Previsto',data:top.map(r=>r.prev),backgroundColor:'#c8821a',borderRadius:3},
-      {label:'Realizado',data:top.map(r=>r.real),backgroundColor:isG?'#b8442f':'#1f7a5a',borderRadius:3}]},
+      {label:'Previsto',data:top.map(r=>r.prev),backgroundColor:'#7e93a8',borderRadius:3},
+      {label:'Realizado',data:top.map(r=>r.real),backgroundColor:corReal,borderRadius:3}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:12}},
-        tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.x)}}},
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:12,
+        generateLabels:()=>[
+          {text:'Previsto',fillStyle:'#7e93a8',strokeStyle:'#7e93a8'},
+          {text:isG?'Realizado (dentro)':'Realizado (atingido)',fillStyle:'#2f8f6b',strokeStyle:'#2f8f6b'},
+          {text:isG?'Realizado (estourou)':'Realizado (abaixo)',fillStyle:isG?'#cf5b46':'#d59a3c',strokeStyle:isG?'#cf5b46':'#d59a3c'}
+        ]}},
+        tooltip:{callbacks:{label:c=>{
+          const r=top[c.dataIndex];
+          if(c.dataset.label==='Realizado'){
+            const dif=r.prev-r.real; const txt=isG?(dif>=0?'sobrou ':'estourou '):(r.real-r.prev>=0?'acima ':'abaixo ');
+            return 'Realizado: '+BRL(r.real)+'  ('+txt+BRL(Math.abs(dif))+')';
+          }
+          return c.dataset.label+': '+BRL(c.parsed.x);
+        }}}},
       scales:{x:{ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'}},y:{grid:{display:false}}}}});
 
   // gráfico mês a mês (ignora filtro de mês para mostrar a série toda)
@@ -941,11 +983,14 @@ document.getElementById('flow-seg').addEventListener('click',e=>{if(e.target.dat
 function renderCat(){
   destroy('c-cat');const sai=getFiltered().filter(d=>d.tipo==='Saída Real');const g=grp(sai,'categoria');
   const e=Object.entries(g).sort((a,b)=>b[1]-a[1]);
-  charts['c-cat']=new Chart(document.getElementById('c-cat'),{type:'doughnut',
-    data:{labels:e.map(x=>x[0]),datasets:[{data:e.map(x=>x[1]),backgroundColor:e.map((x,i)=>COLORS[i%COLORS.length]),borderWidth:2,borderColor:'#fff'}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'58%',
-      plugins:{legend:{position:'right',labels:{boxWidth:10,padding:7,font:{size:10}}},
-        tooltip:{callbacks:{label:c=>c.label+': '+BRL(c.parsed)+' ('+(c.parsed/sum(sai)*100).toFixed(0)+'%)'}}}}});
+  const tot=sum(sai);
+  charts['c-cat']=new Chart(document.getElementById('c-cat'),{type:'bar',
+    data:{labels:e.map(x=>x[0]),datasets:[{data:e.map(x=>x[1]),
+      backgroundColor:e.map((x,i)=>COLORS[i%COLORS.length]),borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>BRL(c.parsed.x)+' ('+(tot?(c.parsed.x/tot*100).toFixed(0):0)+'%)'}}},
+      scales:{x:{ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'}},y:{grid:{display:false},ticks:{font:{size:11}}}}}});
 }
 function renderClass(){
   destroy('c-class');const sai=getFiltered().filter(d=>d.tipo==='Saída Real');const g=grp(sai,'classificacao');
@@ -971,6 +1016,60 @@ function renderForma(){
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>BRL(c.parsed.x)}}},
       scales:{x:{ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'}},y:{grid:{display:false}}}}});
 }
+
+// Categoria × Responsável (barras empilhadas: uma barra por categoria, segmentada por responsável)
+function renderCatGer(){
+  destroy('c-catger');
+  const sai=getFiltered().filter(d=>d.tipo==='Saída Real');
+  // categorias ordenadas por total (maiores primeiro), limitando às 10 maiores para legibilidade
+  const totCat=grp(sai,'categoria');
+  const cats=Object.entries(totCat).sort((a,b)=>b[1]-a[1]).slice(0,10).map(x=>x[0]);
+  const responsaveis=[...new Set(sai.map(d=>d.gerador||'—'))].sort();
+  const datasets=responsaveis.map((r,i)=>({
+    label:r,
+    data:cats.map(c=>sum(sai.filter(d=>(d.categoria||'—')===c&&(d.gerador||'—')===r))),
+    backgroundColor:COLORS[i%COLORS.length],
+    borderRadius:3
+  }));
+  charts['c-catger']=new Chart(document.getElementById('c-catger'),{type:'bar',
+    data:{labels:cats,datasets:datasets},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:11,padding:10}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.x)}}},
+      scales:{x:{stacked:true,ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'}},
+        y:{stacked:true,grid:{display:false}}}}});
+}
+
+// Ranking de maiores gastos (Top 10) — por categoria ou por descrição
+let rankMode='categoria';
+function renderRank(){
+  const sai=getFiltered().filter(d=>d.tipo==='Saída Real');
+  let entries;
+  if(rankMode==='descricao'){
+    // agrupa por descrição (texto)
+    const m={};
+    sai.forEach(d=>{const k=(d.descricao||'—').trim()||'—';m[k]=(m[k]||0)+d.valor;});
+    entries=Object.entries(m);
+  }else{
+    entries=Object.entries(grp(sai,'categoria'));
+  }
+  entries=entries.sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const max=entries.length?entries[0][1]:1;
+  const el=document.getElementById('rank-list');
+  if(!entries.length){ el.innerHTML='<div class="hint">Sem saídas reais no recorte atual.</div>'; return; }
+  el.innerHTML=entries.map((e,i)=>{
+    const pct=(e[1]/max*100).toFixed(0);
+    const nome=String(e[0]).replace(/</g,'&lt;');
+    return `<div class="rank-row"><div class="bar" style="width:${pct}%"></div>
+      <span class="nome"><span class="pos">${i+1}º</span>${nome}</span>
+      <span class="val">${BRL(e[1])}</span></div>`;
+  }).join('');
+}
+document.getElementById('rank-seg').addEventListener('click',e=>{
+  if(e.target.dataset.r){ rankMode=e.target.dataset.r;
+    [...e.currentTarget.children].forEach(b=>b.classList.toggle('on',b===e.target));
+    renderRank(); }
+});
 function renderInsights(){
   const f=getFiltered();const sai=f.filter(d=>d.tipo==='Saída Real');const ent=f.filter(d=>d.tipo==='Entrada Real');
   const ins=[];
