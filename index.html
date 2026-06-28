@@ -76,6 +76,26 @@ select,input[type=text]{font-family:inherit;font-size:13px;padding:7px 10px;bord
   border-radius:7px;background:#fff;color:var(--ink);min-width:130px;cursor:pointer}
 .filters .spacer{flex:1}
 .chip-reset{font-size:12px;color:var(--red);background:none;border:none;cursor:pointer;font-weight:600;padding:6px}
+/* Multi-seleção compacta */
+.msel{position:relative;min-width:140px}
+.msel-btn{font-family:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line);border-radius:7px;
+  background:#fff;color:var(--ink);cursor:pointer;width:100%;text-align:left;display:flex;
+  align-items:center;justify-content:space-between;gap:6px}
+.msel-btn:hover{border-color:var(--green)}
+.msel-btn .cnt{font-size:10px;font-weight:700;color:#fff;background:var(--green);border-radius:10px;
+  padding:1px 7px;min-width:16px;text-align:center}
+.msel-btn .cnt.zero{background:var(--line);color:var(--muted)}
+.msel-btn .arr{color:var(--muted);font-size:10px}
+.msel-pop{position:absolute;top:calc(100% + 4px);left:0;z-index:50;background:var(--panel);
+  border:1px solid var(--line);border-radius:9px;box-shadow:0 10px 30px rgba(0,0,0,.16);
+  min-width:200px;max-width:280px;max-height:300px;overflow-y:auto;padding:6px;display:none}
+.msel-pop.show{display:block}
+.msel-pop .msel-tools{display:flex;gap:8px;padding:4px 6px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.msel-pop .msel-tools button{font-size:11px;color:var(--green);background:none;border:none;cursor:pointer;font-weight:700;padding:2px}
+.msel-opt{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:13px}
+.msel-opt:hover{background:var(--green-soft)}
+.msel-opt input{cursor:pointer;width:15px;height:15px;accent-color:var(--green);margin:0}
+.msel-opt span{flex:1}
 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:26px}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
 .kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--muted)}
@@ -246,12 +266,13 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
 </div>
 
 <div class="filters" id="filters">
-  <div class="fgroup"><label>Período</label><select id="f-mes"></select></div>
-  <div class="fgroup"><label>Tipo de registro</label><select id="f-tipo"></select></div>
-  <div class="fgroup"><label>Categoria</label><select id="f-cat"></select></div>
-  <div class="fgroup"><label>Classificação</label><select id="f-class"></select></div>
-  <div class="fgroup"><label>Responsável</label><select id="f-ger"></select></div>
-  <div class="fgroup"><label>Forma de pagamento</label><select id="f-forma"></select></div>
+  <div class="fgroup"><label>Ano</label><div class="msel" id="ms-ano"></div></div>
+  <div class="fgroup"><label>Período</label><div class="msel" id="ms-mes"></div></div>
+  <div class="fgroup"><label>Tipo de registro</label><div class="msel" id="ms-tipo"></div></div>
+  <div class="fgroup"><label>Categoria</label><div class="msel" id="ms-cat"></div></div>
+  <div class="fgroup"><label>Classificação</label><div class="msel" id="ms-class"></div></div>
+  <div class="fgroup"><label>Responsável</label><div class="msel" id="ms-ger"></div></div>
+  <div class="fgroup"><label>Forma de pagamento</label><div class="msel" id="ms-forma"></div></div>
   <div class="spacer"></div>
   <button class="chip-reset" onclick="resetFilters()">Limpar filtros ✕</button>
 </div>
@@ -608,37 +629,175 @@ window.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('show'
 function uniq(k){return [...new Set(DATA.map(d=>d[k]).filter(x=>x!=null&&x!==''))];}
 function periodKey(d){return d.ano+'-'+String(d.mes).padStart(2,'0');}
 
+// estado da multi-seleção: cada campo guarda um Set de valores marcados (vazio = todos)
+const MSEL = {ano:new Set(), mes:new Set(), tipo:new Set(), categoria:new Set(), classificacao:new Set(), gerador:new Set(), forma:new Set()};
+const MSEL_MAP = [
+  {id:'ms-tipo', campo:'tipo', label:'tipos'},
+  {id:'ms-cat', campo:'categoria', label:'categorias'},
+  {id:'ms-class', campo:'classificacao', label:'classif.'},
+  {id:'ms-ger', campo:'gerador', label:'responsáveis'},
+  {id:'ms-forma', campo:'forma', label:'formas'}
+];
+
 function buildFilters(){
-  const fill=(id,vals,all)=>{const s=document.getElementById(id);const cur=s.value;
-    s.innerHTML='<option value="">'+all+'</option>'+vals.sort().map(v=>`<option>${v}</option>`).join('');
-    if([...s.options].some(o=>o.value===cur))s.value=cur;};
-  const periods=[...new Set(DATA.map(periodKey))].sort();
-  const fm=document.getElementById('f-mes');const cur=fm.value;
-  fm.innerHTML='<option value="">Todos os meses</option>'+periods.map(p=>{const[a,m]=p.split('-');return `<option value="${p}">${MES[+m]}/${a}</option>`}).join('');
-  if([...fm.options].some(o=>o.value===cur))fm.value=cur;
-  fill('f-tipo',uniq('tipo'),'Todos os tipos');
-  fill('f-cat',uniq('categoria'),'Todas as categorias');
-  fill('f-class',uniq('classificacao'),'Todas');
-  fill('f-ger',uniq('gerador'),'Todos');
-  fill('f-forma',uniq('forma'),'Todas as formas');
+  construirMselAno();
+  construirMselPeriodo();
+  MSEL_MAP.forEach(m=>construirMsel(m));
 }
-['f-mes','f-tipo','f-cat','f-class','f-ger','f-forma'].forEach(id=>document.getElementById(id).addEventListener('change',render));
+
+// ===== Filtro ANO =====
+function construirMselAno(){
+  const opts=[...new Set(DATA.map(d=>String(d.ano)).filter(a=>a&&a!=='undefined'))].sort();
+  [...MSEL.ano].forEach(v=>{ if(!opts.includes(v)) MSEL.ano.delete(v); });
+  const cont=document.getElementById('ms-ano');
+  const n=MSEL.ano.size;
+  const rotulo = n===0 ? 'Todos os anos' : (n===1 ? [...MSEL.ano][0] : n+' anos');
+  cont.innerHTML=`
+    <button class="msel-btn" onclick="toggleMselPop('ms-ano',event)">
+      <span class="lbl">${rotulo}</span>
+      <span class="cnt ${n===0?'zero':''}">${n===0?'∀':n}</span>
+    </button>
+    <div class="msel-pop" id="ms-ano-pop">
+      <div class="msel-tools">
+        <button onclick="mselAnoAll()">Marcar todos</button>
+        <button onclick="mselAnoNone()">Limpar</button>
+      </div>
+      ${opts.map(o=>{
+        const ck=MSEL.ano.has(o)?'checked':'';
+        return `<label class="msel-opt"><input type="checkbox" value="${o}" ${ck} onchange="mselAnoToggle(this.value,this.checked)"><span>${o}</span></label>`;
+      }).join('')}
+    </div>`;
+}
+function mselAnoToggle(val,marcado){
+  if(marcado)MSEL.ano.add(val); else MSEL.ano.delete(val);
+  // ao mudar o ano, remove do Período os meses que não pertencem aos anos marcados
+  if(MSEL.ano.size>0){ [...MSEL.mes].forEach(p=>{ if(!MSEL.ano.has(p.split('-')[0])) MSEL.mes.delete(p); }); }
+  construirMselAno(); construirMselPeriodo();
+  document.getElementById('ms-ano-pop').classList.add('show'); render();
+}
+function mselAnoAll(){ [...new Set(DATA.map(d=>String(d.ano)))].forEach(v=>MSEL.ano.add(v)); construirMselAno(); construirMselPeriodo(); document.getElementById('ms-ano-pop').classList.add('show'); render(); }
+function mselAnoNone(){ MSEL.ano.clear(); construirMselAno(); construirMselPeriodo(); document.getElementById('ms-ano-pop').classList.add('show'); render(); }
+
+function rotuloMes(p){ const[a,m]=p.split('-'); return MES[+m]+'/'+a; }
+
+// meses disponíveis, respeitando o(s) ano(s) selecionado(s)
+function mesesDisponiveis(){
+  let opts=[...new Set(DATA.map(periodKey))].sort();
+  if(MSEL.ano.size>0) opts=opts.filter(p=>MSEL.ano.has(p.split('-')[0]));
+  return opts;
+}
+
+function construirMselPeriodo(){
+  const opts=mesesDisponiveis();
+  [...MSEL.mes].forEach(v=>{ if(!opts.includes(v)) MSEL.mes.delete(v); });
+  const cont=document.getElementById('ms-mes');
+  const n=MSEL.mes.size;
+  const rotulo = n===0 ? 'Todos os meses' : (n===1 ? rotuloMes([...MSEL.mes][0]) : n+' meses');
+  cont.innerHTML=`
+    <button class="msel-btn" onclick="toggleMselPop('ms-mes',event)">
+      <span class="lbl">${rotulo}</span>
+      <span class="cnt ${n===0?'zero':''}">${n===0?'∀':n}</span>
+    </button>
+    <div class="msel-pop" id="ms-mes-pop">
+      <div class="msel-tools">
+        <button onclick="mselMesAll()">Marcar todos</button>
+        <button onclick="mselMesNone()">Limpar</button>
+      </div>
+      ${opts.map(o=>{
+        const ck=MSEL.mes.has(o)?'checked':'';
+        return `<label class="msel-opt"><input type="checkbox" value="${o}" ${ck} onchange="mselMesToggle(this.value,this.checked)"><span>${rotuloMes(o)}</span></label>`;
+      }).join('')}
+    </div>`;
+}
+function mselMesToggle(val,marcado){ if(marcado)MSEL.mes.add(val); else MSEL.mes.delete(val); construirMselPeriodo(); document.getElementById('ms-mes-pop').classList.add('show'); render(); }
+function mselMesAll(){ mesesDisponiveis().forEach(v=>MSEL.mes.add(v)); construirMselPeriodo(); document.getElementById('ms-mes-pop').classList.add('show'); render(); }
+function mselMesNone(){ MSEL.mes.clear(); construirMselPeriodo(); document.getElementById('ms-mes-pop').classList.add('show'); render(); }
+
+function construirMsel(m){
+  const opts=uniq(m.campo).sort((a,b)=>String(a).localeCompare(String(b)));
+  // remove do Set valores que não existem mais
+  [...MSEL[m.campo]].forEach(v=>{ if(!opts.includes(v)) MSEL[m.campo].delete(v); });
+  const cont=document.getElementById(m.id);
+  const n=MSEL[m.campo].size;
+  const rotulo = n===0 ? 'Todos' : (n===1 ? [...MSEL[m.campo]][0] : n+' selecionados');
+  cont.innerHTML=`
+    <button class="msel-btn" onclick="toggleMselPop('${m.id}',event)">
+      <span class="lbl">${rotulo}</span>
+      <span class="cnt ${n===0?'zero':''}">${n===0?'∀':n}</span>
+    </button>
+    <div class="msel-pop" id="${m.id}-pop">
+      <div class="msel-tools">
+        <button onclick="mselAll('${m.campo}','${m.id}')">Marcar todos</button>
+        <button onclick="mselNone('${m.campo}','${m.id}')">Limpar</button>
+      </div>
+      ${opts.map(o=>{
+        const ck=MSEL[m.campo].has(o)?'checked':'';
+        const safe=String(o).replace(/"/g,'&quot;');
+        return `<label class="msel-opt"><input type="checkbox" value="${safe}" ${ck} onchange="mselToggle('${m.campo}','${m.id}',this.value,this.checked)"><span>${o}</span></label>`;
+      }).join('')}
+    </div>`;
+}
+
+function toggleMselPop(id,ev){
+  ev.stopPropagation();
+  const pop=document.getElementById(id+'-pop');
+  const aberto=pop.classList.contains('show');
+  document.querySelectorAll('.msel-pop.show').forEach(p=>p.classList.remove('show'));
+  if(!aberto)pop.classList.add('show');
+}
+function mselToggle(campo,id,val,marcado){
+  if(marcado)MSEL[campo].add(val); else MSEL[campo].delete(val);
+  atualizaMselBtn(campo,id); render();
+}
+function mselAll(campo,id){
+  uniq(campo).forEach(v=>MSEL[campo].add(v));
+  construirMsel(MSEL_MAP.find(m=>m.id===id)); document.getElementById(id+'-pop').classList.add('show'); render();
+}
+function mselNone(campo,id){
+  MSEL[campo].clear();
+  construirMsel(MSEL_MAP.find(m=>m.id===id)); document.getElementById(id+'-pop').classList.add('show'); render();
+}
+function atualizaMselBtn(campo,id){
+  const m=MSEL_MAP.find(x=>x.id===id);
+  const n=MSEL[campo].size;
+  const rotulo = n===0 ? 'Todos' : (n===1 ? [...MSEL[campo]][0] : n+' selecionados');
+  const btn=document.querySelector('#'+id+' .msel-btn');
+  if(btn){ btn.querySelector('.lbl').textContent=rotulo;
+    const cnt=btn.querySelector('.cnt'); cnt.textContent=n===0?'∀':n; cnt.className='cnt '+(n===0?'zero':''); }
+}
+// fecha popups ao clicar fora
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.msel'))document.querySelectorAll('.msel-pop.show').forEach(p=>p.classList.remove('show'));
+});
+
 document.getElementById('search').addEventListener('input',e=>{searchTerm=e.target.value.toLowerCase();renderTable();});
-function resetFilters(){['f-mes','f-tipo','f-cat','f-class','f-ger','f-forma'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('search').value='';searchTerm='';render();}
+function resetFilters(){
+  Object.values(MSEL).forEach(s=>s.clear());
+  construirMselAno();
+  construirMselPeriodo();
+  MSEL_MAP.forEach(m=>construirMsel(m));
+  document.getElementById('search').value='';searchTerm='';render();
+}
+
+// helper: passa no filtro se o Set está vazio (todos) ou contém o valor
+function _match(set,val){ return set.size===0 || set.has(val); }
 
 function getFiltered(){
-  const mes=document.getElementById('f-mes').value,tipo=document.getElementById('f-tipo').value,
-    cat=document.getElementById('f-cat').value,cls=document.getElementById('f-class').value,
-    ger=document.getElementById('f-ger').value,forma=document.getElementById('f-forma').value;
-  return DATA.filter(d=>(!mes||periodKey(d)===mes)&&(!tipo||d.tipo===tipo)&&(!cat||d.categoria===cat)&&
-    (!cls||d.classificacao===cls)&&(!ger||d.gerador===ger)&&(!forma||d.forma===forma));
+  return DATA.filter(d=>_match(MSEL.ano,String(d.ano))
+    && _match(MSEL.mes,periodKey(d))
+    && _match(MSEL.tipo,d.tipo)
+    && _match(MSEL.categoria,d.categoria)
+    && _match(MSEL.classificacao,d.classificacao)
+    && _match(MSEL.gerador,d.gerador)
+    && _match(MSEL.forma,d.forma));
 }
-// Para orçamento, ignoramos o filtro de TIPO (pois precisamos de previsto E real juntos)
+// Para orçamento, ignoramos o filtro de TIPO (precisamos de previsto E real juntos)
 function getBudgetScope(){
-  const mes=document.getElementById('f-mes').value,cat=document.getElementById('f-cat').value,
-    cls=document.getElementById('f-class').value,ger=document.getElementById('f-ger').value;
-  return DATA.filter(d=>(!mes||periodKey(d)===mes)&&(!cat||d.categoria===cat)&&(!cls||d.classificacao===cls)&&(!ger||d.gerador===ger));
+  return DATA.filter(d=>_match(MSEL.ano,String(d.ano))
+    && _match(MSEL.mes,periodKey(d))
+    && _match(MSEL.categoria,d.categoria)
+    && _match(MSEL.classificacao,d.classificacao)
+    && _match(MSEL.gerador,d.gerador));
 }
 function sum(arr,f=d=>d.valor){return arr.reduce((s,d)=>s+f(d),0);}
 function grp(arr,key){const m={};arr.forEach(d=>{const k=d[key]||'—';m[k]=(m[k]||0)+d.valor});return m;}
@@ -736,8 +895,7 @@ function renderBudget(){
   destroy('c-budmonth');
   const prevType=isG?'Previsão Gasto':'Previsão Provento';
   const realType=isG?'Saída Real':'Entrada Real';
-  const cat=document.getElementById('f-cat').value,cls=document.getElementById('f-class').value,ger=document.getElementById('f-ger').value;
-  const base=DATA.filter(d=>(!cat||d.categoria===cat)&&(!cls||d.classificacao===cls)&&(!ger||d.gerador===ger));
+  const base=DATA.filter(d=>_match(MSEL.categoria,d.categoria)&&_match(MSEL.classificacao,d.classificacao)&&_match(MSEL.gerador,d.gerador));
   const periods=[...new Set(base.map(periodKey))].sort();
   const lbl=periods.map(p=>{const[a,m]=p.split('-');return MES[+m]+'/'+a.slice(2)});
   const prevSeries=periods.map(p=>sum(base.filter(d=>periodKey(d)===p&&d.tipo===prevType)));
