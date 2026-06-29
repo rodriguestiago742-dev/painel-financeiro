@@ -211,12 +211,8 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
   .brand .sub{font-size:12px;max-width:100%}
   .actions{align-items:stretch}
   .actrow{flex-wrap:wrap;gap:8px}
-  /* Botões em grade 2 colunas, fáceis de tocar; permite quebrar */
-  .topbar .actrow.actgrid{display:flex!important;flex-wrap:wrap!important;gap:8px;justify-content:center}
-  .topbar .actrow.actgrid .btn{flex:1 1 calc(50% - 8px)!important;width:auto!important;min-width:0!important;justify-content:center;padding:13px 10px;font-size:13px;height:auto;min-height:46px;white-space:normal}
-  .topbar .actrow.actgrid .btn.big{flex:1 1 100%!important}
-  .btn{flex:1 1 calc(50% - 8px);justify-content:center;padding:13px 10px;font-size:13px;min-height:46px}
-  .btn.big{flex:1 1 100%}
+  /* (Os botões de ação ficam na aba Ações no mobile, não no topo) */
+  .btn{justify-content:center}
   .status{text-align:left;max-width:100%}
   .actions > div[style]{text-align:left !important;max-width:100% !important}
   /* KPIs em 2 colunas, depois 1 nas telas bem estreitas */
