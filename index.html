@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!-- ============================================================
+     PAINEL DOMÉSTICO · VERSÃO DESKTOP v11
+     Novidades v11: gráfico de 5 linhas (evolução mês a mês) na Visão Geral
+     + filtro de dia exato dentro do Período (marca mês -> aparecem os dias).
+     Atualizado: 30/06/2026 · arquivo publicado como index.html
+     ============================================================ -->
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -112,6 +118,13 @@ select,input[type=text]{font-family:inherit;font-size:13px;padding:7px 10px;bord
 .msel-pop .msel-tools{display:flex;gap:8px;padding:4px 6px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
 .msel-pop .msel-tools button{font-size:11px;color:var(--green);background:none;border:none;cursor:pointer;font-weight:700;padding:2px}
 .msel-opt{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:13px}
+.msel-mes-row{display:flex;align-items:center;gap:4px}
+.msel-dias-btn{font-size:10.5px;font-weight:700;color:var(--blue);background:var(--green-soft);border:none;
+  border-radius:6px;padding:4px 8px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.msel-dias-btn.on{background:var(--blue);color:#fff}
+.msel-dias{margin:2px 0 6px 18px;padding-left:8px;border-left:2px solid var(--green-soft)}
+.msel-opt-dia{font-size:12px;color:var(--muted);padding:4px 8px}
+.msel-opt-dia input{accent-color:var(--blue)}
 .msel-opt:hover{background:var(--green-soft)}
 .msel-opt input{cursor:pointer;width:15px;height:15px;accent-color:var(--green);margin:0}
 .msel-opt span{flex:1}
@@ -316,6 +329,11 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
   <div class="kpis" id="kpis"></div>
   <div class="grid">
     <div class="card col-12">
+      <h3>Evolução mês a mês</h3>
+      <div class="hint">Entradas, saídas, saldo e previsões ao longo do tempo · respeita os filtros</div>
+      <div class="chart-box tall"><canvas id="c-evol5"></canvas></div>
+    </div>
+    <div class="card col-12">
       <h3>Leitura rápida</h3>
       <div class="hint">Destaques calculados do recorte atual</div>
       <div class="insights" id="insights" style="flex-direction:row;flex-wrap:wrap"></div>
@@ -458,7 +476,7 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
   </div>
 </div>
 
-<footer>Painel gerado a partir do formulário Microsoft 365 · Atualize reenviando a planilha · Todos os cálculos respeitam os filtros ativos</footer>
+<footer>Painel gerado a partir do formulário Microsoft 365 · Atualize reenviando a planilha · Todos os cálculos respeitam os filtros ativos<br><span style="opacity:.6;font-size:11px">Desktop v11</span></footer>
 
 </div><!-- /wrap -->
 
@@ -679,7 +697,9 @@ function uniq(k){return [...new Set(DATA.map(d=>d[k]).filter(x=>x!=null&&x!=='')
 function periodKey(d){return d.ano+'-'+String(d.mes).padStart(2,'0');}
 
 // estado da multi-seleção: cada campo guarda um Set de valores marcados (vazio = todos)
-const MSEL = {ano:new Set(), mes:new Set(), tipo:new Set(), categoria:new Set(), classificacao:new Set(), gerador:new Set(), forma:new Set()};
+const MSEL = {ano:new Set(), mes:new Set(), dia:new Set(), tipo:new Set(), categoria:new Set(), classificacao:new Set(), gerador:new Set(), forma:new Set()};
+// meses com a sub-lista de dias aberta (só visual, não filtra)
+const MESES_EXPANDIDOS = new Set();
 const MSEL_MAP = [
   {id:'ms-tipo', campo:'tipo', label:'tipos'},
   {id:'ms-cat', campo:'categoria', label:'categorias'},
@@ -739,13 +759,18 @@ function mesesDisponiveis(){
 function construirMselPeriodo(){
   const opts=mesesDisponiveis();
   [...MSEL.mes].forEach(v=>{ if(!opts.includes(v)) MSEL.mes.delete(v); });
+  // limpa dias que não pertencem a meses marcados
+  [...MSEL.dia].forEach(dia=>{ const mesDoDia=dia.slice(0,7); if(!MSEL.mes.has(mesDoDia)) MSEL.dia.delete(dia); });
   const cont=document.getElementById('ms-mes');
-  const n=MSEL.mes.size;
-  const rotulo = n===0 ? 'Todos os meses' : (n===1 ? rotuloMes([...MSEL.mes][0]) : n+' meses');
+  const nMes=MSEL.mes.size, nDia=MSEL.dia.size;
+  let rotulo;
+  if(nDia>0) rotulo = nDia===1 ? rotuloDia([...MSEL.dia][0]) : nDia+' dias';
+  else rotulo = nMes===0 ? 'Todos os meses' : (nMes===1 ? rotuloMes([...MSEL.mes][0]) : nMes+' meses');
+  const cnt = nDia>0 ? nDia : nMes;
   cont.innerHTML=`
     <button class="msel-btn" onclick="toggleMselPop('ms-mes',event)">
       <span class="lbl">${rotulo}</span>
-      <span class="cnt ${n===0?'zero':''}">${n===0?'∀':n}</span>
+      <span class="cnt ${cnt===0?'zero':''}">${cnt===0?'∀':cnt}</span>
     </button>
     <div class="msel-pop" id="ms-mes-pop">
       <div class="msel-tools">
@@ -754,13 +779,39 @@ function construirMselPeriodo(){
       </div>
       ${opts.map(o=>{
         const ck=MSEL.mes.has(o)?'checked':'';
-        return `<label class="msel-opt"><input type="checkbox" value="${o}" ${ck} onchange="mselMesToggle(this.value,this.checked)"><span>${rotuloMes(o)}</span></label>`;
+        const dias=diasDisponiveis(o);
+        const expandido=MESES_EXPANDIDOS.has(o);
+        const nDiaMes=[...MSEL.dia].filter(dia=>dia.slice(0,7)===o).length;
+        let html=`<div class="msel-mes-row">
+          <label class="msel-opt" style="flex:1"><input type="checkbox" value="${o}" ${ck} onchange="mselMesToggle(this.value,this.checked)"><span>${rotuloMes(o)}</span></label>`;
+        if(dias.length){
+          html+=`<button type="button" class="msel-dias-btn ${expandido?'on':''}" onclick="toggleDias('${o}',event)">${expandido?'▾':'▸'} dias${nDiaMes>0?' ('+nDiaMes+')':''}</button>`;
+        }
+        html+=`</div>`;
+        // dias só aparecem se o mês estiver expandido
+        if(expandido && dias.length){
+          html+=`<div class="msel-dias">`;
+          html+=dias.map(dia=>{
+            const ckd=MSEL.dia.has(dia)?'checked':'';
+            return `<label class="msel-opt msel-opt-dia"><input type="checkbox" value="${dia}" ${ckd} onchange="mselDiaToggle(this.value,this.checked)"><span>${rotuloDia(dia)}</span></label>`;
+          }).join('');
+          html+=`</div>`;
+        }
+        return html;
       }).join('')}
     </div>`;
 }
-function mselMesToggle(val,marcado){ if(marcado)MSEL.mes.add(val); else MSEL.mes.delete(val); construirMselPeriodo(); document.getElementById('ms-mes-pop').classList.add('show'); render(); }
+// dias (datas exatas) com lançamento dentro de um mês (period key 'AAAA-MM')
+function diasDisponiveis(periodo){
+  const dias=DATA.filter(d=>periodKey(d)===periodo && d.data).map(d=>d.data);
+  return [...new Set(dias)].sort();
+}
+function rotuloDia(dataISO){ const[a,m,dd]=dataISO.split('-'); return dd+'/'+m+'/'+a; }
+function toggleDias(periodo,ev){ ev.stopPropagation(); if(MESES_EXPANDIDOS.has(periodo))MESES_EXPANDIDOS.delete(periodo); else MESES_EXPANDIDOS.add(periodo); construirMselPeriodo(); document.getElementById('ms-mes-pop').classList.add('show'); }
+function mselDiaToggle(val,marcado){ if(marcado){MSEL.dia.add(val); MSEL.mes.add(val.slice(0,7));} else MSEL.dia.delete(val); construirMselPeriodo(); document.getElementById('ms-mes-pop').classList.add('show'); render(); }
+function mselMesToggle(val,marcado){ if(marcado)MSEL.mes.add(val); else {MSEL.mes.delete(val); [...MSEL.dia].forEach(dia=>{ if(dia.slice(0,7)===val) MSEL.dia.delete(dia); });} construirMselPeriodo(); document.getElementById('ms-mes-pop').classList.add('show'); render(); }
 function mselMesAll(){ mesesDisponiveis().forEach(v=>MSEL.mes.add(v)); construirMselPeriodo(); document.getElementById('ms-mes-pop').classList.add('show'); render(); }
-function mselMesNone(){ MSEL.mes.clear(); construirMselPeriodo(); document.getElementById('ms-mes-pop').classList.add('show'); render(); }
+function mselMesNone(){ MSEL.mes.clear(); MSEL.dia.clear(); construirMselPeriodo(); document.getElementById('ms-mes-pop').classList.add('show'); render(); }
 
 function construirMsel(m){
   const opts=uniq(m.campo).sort((a,b)=>String(a).localeCompare(String(b)));
@@ -833,17 +884,28 @@ function _match(set,val){ return set.size===0 || set.has(val); }
 
 function getFiltered(){
   return DATA.filter(d=>_match(MSEL.ano,String(d.ano))
-    && _match(MSEL.mes,periodKey(d))
+    && _matchPeriodo(d)
     && _match(MSEL.tipo,d.tipo)
     && _match(MSEL.categoria,d.categoria)
     && _match(MSEL.classificacao,d.classificacao)
     && _match(MSEL.gerador,d.gerador)
     && _match(MSEL.forma,d.forma));
 }
+// Período: se há DIAS marcados, filtra por data exata (apenas dos meses que têm dia marcado);
+// nos meses marcados SEM nenhum dia selecionado, mostra o mês inteiro.
+function _matchPeriodo(d){
+  if(MSEL.mes.size===0 && MSEL.dia.size===0) return true; // todos
+  const mesD=periodKey(d);
+  if(!MSEL.mes.has(mesD)) return false; // fora dos meses marcados
+  // há algum dia marcado DESTE mês?
+  const temDiaDesteMes=[...MSEL.dia].some(dia=>dia.slice(0,7)===mesD);
+  if(temDiaDesteMes){ return MSEL.dia.has(d.data); } // filtra por dia exato
+  return true; // mês marcado sem dias específicos = mês inteiro
+}
 // Para orçamento, ignoramos o filtro de TIPO (precisamos de previsto E real juntos)
 function getBudgetScope(){
   return DATA.filter(d=>_match(MSEL.ano,String(d.ano))
-    && _match(MSEL.mes,periodKey(d))
+    && _matchPeriodo(d)
     && _match(MSEL.categoria,d.categoria)
     && _match(MSEL.classificacao,d.classificacao)
     && _match(MSEL.gerador,d.gerador));
@@ -853,7 +915,35 @@ function grp(arr,key){const m={};arr.forEach(d=>{const k=d[key]||'—';m[k]=(m[k
 function destroy(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 Chart.defaults.font.family="Inter,sans-serif";Chart.defaults.font.size=11;Chart.defaults.color='#6b6557';
 
-function render(){renderKPIs();renderBudget();renderFlow();renderCat();renderClass();renderGer();renderForma();renderCatGer();renderRank();renderInsights();renderTable();}
+function render(){renderKPIs();renderEvol5();renderBudget();renderFlow();renderCat();renderClass();renderGer();renderForma();renderCatGer();renderRank();renderInsights();renderTable();}
+
+// Gráfico de 5 linhas na Visão Geral: evolução mês a mês
+function renderEvol5(){
+  destroy('c-evol5');
+  const f=getFiltered();
+  const periods=[...new Set(f.map(periodKey))].sort();
+  if(!periods.length){ return; }
+  const lbl=periods.map(p=>{const[a,m]=p.split('-');return MES[+m]+'/'+a.slice(2)});
+  const somaTipo=(p,t)=>sum(f.filter(d=>periodKey(d)===p&&d.tipo===t));
+  const ent=periods.map(p=>somaTipo(p,'Entrada Real'));
+  const sai=periods.map(p=>somaTipo(p,'Saída Real'));
+  const saldo=periods.map((p,i)=>ent[i]-sai[i]);
+  // previsões: só onde há valor lançado (null nos meses sem previsão = linha some ali)
+  const pg=periods.map(p=>{const v=somaTipo(p,'Previsão Gasto');return v>0?v:null;});
+  const pp=periods.map(p=>{const v=somaTipo(p,'Previsão Provento');return v>0?v:null;});
+  charts['c-evol5']=new Chart(document.getElementById('c-evol5'),{type:'line',
+    data:{labels:lbl,datasets:[
+      {label:'Entradas reais',data:ent,borderColor:'#1f7a5a',backgroundColor:'#1f7a5a',tension:.3,borderWidth:2.5,pointRadius:3,pointHoverRadius:5},
+      {label:'Saídas reais',data:sai,borderColor:'#b8442f',backgroundColor:'#b8442f',tension:.3,borderWidth:2.5,pointRadius:3,pointHoverRadius:5},
+      {label:'Saldo',data:saldo,borderColor:'#2b5d7d',backgroundColor:'#2b5d7d',tension:.3,borderWidth:2.5,pointRadius:3,pointHoverRadius:5},
+      {label:'Previsão de gasto',data:pg,borderColor:'#c8821a',backgroundColor:'#c8821a',borderDash:[6,4],tension:.3,borderWidth:2,pointRadius:3,pointHoverRadius:5,spanGaps:true},
+      {label:'Previsão de provento',data:pp,borderColor:'#6a4c93',backgroundColor:'#6a4c93',borderDash:[6,4],tension:.3,borderWidth:2,pointRadius:3,pointHoverRadius:5,spanGaps:true}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:12,usePointStyle:true}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y==null?'—':BRL(c.parsed.y))}}},
+      scales:{y:{ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'}},x:{offset:true,grid:{display:false}}}}});
+}
 
 function renderKPIs(){
   const f=getFiltered();
