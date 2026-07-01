@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- ============================================================
-     PAINEL DOMÉSTICO · VERSÃO DESKTOP v11
-     Novidades v11: gráfico de 5 linhas (evolução mês a mês) na Visão Geral
-     + filtro de dia exato dentro do Período (marca mês -> aparecem os dias).
-     Atualizado: 30/06/2026 · arquivo publicado como index.html
+     PAINEL DOMÉSTICO · VERSÃO DESKTOP v12
+     Novidades v12: no gráfico Evolução mês a mês, área sombreada de fundo
+     com o SALDO ACUMULADO (running total do saldo mês a mês).
+     Atualizado: 01/07/2026 · arquivo publicado como index.html
      ============================================================ -->
 <html lang="pt-BR">
 <head>
@@ -476,7 +476,7 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
   </div>
 </div>
 
-<footer>Painel gerado a partir do formulário Microsoft 365 · Atualize reenviando a planilha · Todos os cálculos respeitam os filtros ativos<br><span style="opacity:.6;font-size:11px">Desktop v11</span></footer>
+<footer>Painel gerado a partir do formulário Microsoft 365 · Atualize reenviando a planilha · Todos os cálculos respeitam os filtros ativos<br><span style="opacity:.6;font-size:11px">Desktop v12</span></footer>
 
 </div><!-- /wrap -->
 
@@ -928,16 +928,19 @@ function renderEvol5(){
   const ent=periods.map(p=>somaTipo(p,'Entrada Real'));
   const sai=periods.map(p=>somaTipo(p,'Saída Real'));
   const saldo=periods.map((p,i)=>ent[i]-sai[i]);
+  // saldo acumulado (running total) — soma progressiva do saldo mês a mês
+  let ac=0; const saldoAcum=saldo.map(s=>{ ac+=s; return ac; });
   // previsões: só onde há valor lançado (null nos meses sem previsão = linha some ali)
   const pg=periods.map(p=>{const v=somaTipo(p,'Previsão Gasto');return v>0?v:null;});
   const pp=periods.map(p=>{const v=somaTipo(p,'Previsão Provento');return v>0?v:null;});
   charts['c-evol5']=new Chart(document.getElementById('c-evol5'),{type:'line',
     data:{labels:lbl,datasets:[
-      {label:'Entradas reais',data:ent,borderColor:'#1f7a5a',backgroundColor:'#1f7a5a',tension:.3,borderWidth:2.5,pointRadius:3,pointHoverRadius:5},
-      {label:'Saídas reais',data:sai,borderColor:'#b8442f',backgroundColor:'#b8442f',tension:.3,borderWidth:2.5,pointRadius:3,pointHoverRadius:5},
-      {label:'Saldo',data:saldo,borderColor:'#2b5d7d',backgroundColor:'#2b5d7d',tension:.3,borderWidth:2.5,pointRadius:3,pointHoverRadius:5},
-      {label:'Previsão de gasto',data:pg,borderColor:'#c8821a',backgroundColor:'#c8821a',borderDash:[6,4],tension:.3,borderWidth:2,pointRadius:3,pointHoverRadius:5,spanGaps:true},
-      {label:'Previsão de provento',data:pp,borderColor:'#6a4c93',backgroundColor:'#6a4c93',borderDash:[6,4],tension:.3,borderWidth:2,pointRadius:3,pointHoverRadius:5,spanGaps:true}
+      {label:'Saldo acumulado',data:saldoAcum,borderColor:'rgba(43,93,125,.35)',backgroundColor:'rgba(43,93,125,.10)',fill:true,tension:.3,borderWidth:1.5,pointRadius:0,pointHoverRadius:4,order:5},
+      {label:'Entradas reais',data:ent,borderColor:'#1f7a5a',backgroundColor:'#1f7a5a',tension:.3,borderWidth:2.5,pointRadius:3,pointHoverRadius:5,order:1},
+      {label:'Saídas reais',data:sai,borderColor:'#b8442f',backgroundColor:'#b8442f',tension:.3,borderWidth:2.5,pointRadius:3,pointHoverRadius:5,order:1},
+      {label:'Saldo',data:saldo,borderColor:'#2b5d7d',backgroundColor:'#2b5d7d',tension:.3,borderWidth:2.5,pointRadius:3,pointHoverRadius:5,order:1},
+      {label:'Previsão de gasto',data:pg,borderColor:'#c8821a',backgroundColor:'#c8821a',borderDash:[6,4],tension:.3,borderWidth:2,pointRadius:3,pointHoverRadius:5,spanGaps:true,order:1},
+      {label:'Previsão de provento',data:pp,borderColor:'#6a4c93',backgroundColor:'#6a4c93',borderDash:[6,4],tension:.3,borderWidth:2,pointRadius:3,pointHoverRadius:5,spanGaps:true,order:1}
     ]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:12,usePointStyle:true}},
