@@ -935,7 +935,7 @@ function renderEvol5(){
   const pp=periods.map(p=>{const v=somaTipo(p,'Previsão Provento');return v>0?v:null;});
   charts['c-evol5']=new Chart(document.getElementById('c-evol5'),{type:'line',
     data:{labels:lbl,datasets:[
-      {label:'Saldo acumulado',data:saldoAcum,borderColor:'rgba(43,93,125,.35)',backgroundColor:'rgba(43,93,125,.10)',fill:true,tension:.3,borderWidth:1.5,pointRadius:0,pointHoverRadius:4,order:5},
+      {label:'Saldo acumulado',data:saldoAcum,borderColor:'rgba(43,93,125,.45)',backgroundColor:'rgba(43,93,125,.10)',fill:true,tension:.3,borderWidth:1.5,pointRadius:3,pointHoverRadius:5,pointBackgroundColor:'rgba(43,93,125,.7)',pointBorderColor:'rgba(43,93,125,.7)',order:5},
       {label:'Entradas reais',data:ent,borderColor:'#1f7a5a',backgroundColor:'#1f7a5a',tension:.3,borderWidth:2.5,pointRadius:3,pointHoverRadius:5,order:1},
       {label:'Saídas reais',data:sai,borderColor:'#b8442f',backgroundColor:'#b8442f',tension:.3,borderWidth:2.5,pointRadius:3,pointHoverRadius:5,order:1},
       {label:'Saldo',data:saldo,borderColor:'#2b5d7d',backgroundColor:'#2b5d7d',tension:.3,borderWidth:2.5,pointRadius:3,pointHoverRadius:5,order:1},
