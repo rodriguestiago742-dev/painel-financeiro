@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ============================================================
-     PAINEL DOMÉSTICO · VERSÃO DESKTOP v12
-     Novidades v12: no gráfico Evolução mês a mês, área sombreada de fundo
-     com o SALDO ACUMULADO (running total do saldo mês a mês).
+     PAINEL DOMÉSTICO · VERSÃO DESKTOP v13
+     Novidades v13: nova aba Apontamentos — análise da atividade de registro
+     (por responsável, por dia, por categoria; quantidade e valor).
      Atualizado: 01/07/2026 · arquivo publicado como index.html
      ============================================================ -->
 <html lang="pt-BR">
@@ -12,6 +12,7 @@
 <title>Painel Doméstico</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <style>
 :root{
   --ink:#0d1b1e; --paper:#f3efe6; --panel:#ffffff; --line:#d9d2c4;
@@ -455,6 +456,37 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
   </div>
 </div>
 
+<!-- ABA: APONTAMENTOS -->
+<div class="tabpane" id="pane-apontamentos">
+  <div class="grid">
+    <div class="card col-12">
+      <h3>Apontamentos por responsável (por dia)</h3>
+      <div class="hint">Barras = quantidade de cada responsável · linha = total de apontamentos no dia</div>
+      <div class="chart-box tall"><canvas id="ap-resp-qtd"></canvas></div>
+    </div>
+    <div class="card col-12">
+      <h3>Valor por responsável (por dia)</h3>
+      <div class="hint">Barras = valor de cada responsável · linha = valor total no dia</div>
+      <div class="chart-box tall"><canvas id="ap-resp-val"></canvas></div>
+    </div>
+    <div class="card col-12">
+      <h3>Apontamentos por dia</h3>
+      <div class="hint">Barras = quantidade de registros · linha = valor total no dia</div>
+      <div class="chart-box tall"><canvas id="ap-dia"></canvas></div>
+    </div>
+    <div class="card col-6">
+      <h3>Apontamentos por categoria</h3>
+      <div class="hint">Quantidade de registros em cada categoria</div>
+      <div class="chart-box xtall"><canvas id="ap-cat-qtd"></canvas></div>
+    </div>
+    <div class="card col-6">
+      <h3>Valor por categoria</h3>
+      <div class="hint">Soma dos valores em cada categoria</div>
+      <div class="chart-box xtall"><canvas id="ap-cat-val"></canvas></div>
+    </div>
+  </div>
+</div>
+
 <!-- ABA: LANÇAMENTOS -->
 <div class="tabpane" id="pane-lancamentos">
   <div class="grid">
@@ -476,7 +508,7 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
   </div>
 </div>
 
-<footer>Painel gerado a partir do formulário Microsoft 365 · Atualize reenviando a planilha · Todos os cálculos respeitam os filtros ativos<br><span style="opacity:.6;font-size:11px">Desktop v12</span></footer>
+<footer>Painel gerado a partir do formulário Microsoft 365 · Atualize reenviando a planilha · Todos os cálculos respeitam os filtros ativos<br><span style="opacity:.6;font-size:11px">Desktop v13</span></footer>
 
 </div><!-- /wrap -->
 
@@ -485,6 +517,7 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
   <button class="tab" data-pane="pane-orcamento" onclick="switchTab(this)"><span class="tab-ic">🎯</span>Orçamento</button>
   <button class="tab" data-pane="pane-analises" onclick="switchTab(this)"><span class="tab-ic">📊</span>Análises</button>
   <button class="tab" data-pane="pane-lancamentos" onclick="switchTab(this)"><span class="tab-ic">📋</span>Lançamentos</button>
+  <button class="tab" data-pane="pane-apontamentos" onclick="switchTab(this)"><span class="tab-ic">📌</span>Apontamentos</button>
 </div>
 
 <div class="dropzone" id="dz"><div class="box"><h2>Solte a planilha aqui</h2><p>Arquivo .xlsx exportado do formulário</p></div></div>
@@ -915,7 +948,7 @@ function grp(arr,key){const m={};arr.forEach(d=>{const k=d[key]||'—';m[k]=(m[k
 function destroy(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 Chart.defaults.font.family="Inter,sans-serif";Chart.defaults.font.size=11;Chart.defaults.color='#6b6557';
 
-function render(){renderKPIs();renderEvol5();renderBudget();renderFlow();renderCat();renderClass();renderGer();renderForma();renderCatGer();renderRank();renderInsights();renderTable();}
+function render(){renderKPIs();renderEvol5();renderBudget();renderFlow();renderCat();renderClass();renderGer();renderForma();renderCatGer();renderRank();renderApontamentos();renderInsights();renderTable();}
 
 // Gráfico de 5 linhas na Visão Geral: evolução mês a mês
 function renderEvol5(){
@@ -946,6 +979,105 @@ function renderEvol5(){
       plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:12,usePointStyle:true}},
         tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y==null?'—':BRL(c.parsed.y))}}},
       scales:{y:{ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'}},x:{offset:true,grid:{display:false}}}}});
+}
+
+// ===== ABA APONTAMENTOS: análise de atividade de registro =====
+function renderApontamentos(){
+  const f=getFiltered();
+  const DL = (typeof ChartDataLabels!=='undefined') ? [ChartDataLabels] : [];
+  const dias=[...new Set(f.filter(d=>d.data).map(d=>d.data))].sort();
+  const lblDia=dias.map(dia=>{const[a,m,dd]=dia.split('-');return dd+'/'+m;});
+  const responsaveis=[...new Set(f.map(d=>d.gerador||'—'))].sort();
+  const real=f.filter(d=>d.tipo==='Entrada Real'||d.tipo==='Saída Real');
+
+  // 1) Por responsável — QUANTIDADE por dia: barras agrupadas + linha de total
+  destroy('ap-resp-qtd');
+  const dsQtd=responsaveis.map((r,i)=>({
+    type:'bar',label:r,
+    data:dias.map(dia=>f.filter(d=>d.data===dia&&(d.gerador||'—')===r).length),
+    backgroundColor:COLORS[i%COLORS.length],borderRadius:3,order:2,
+    datalabels:{display:false}
+  }));
+  dsQtd.push({
+    type:'line',label:'Total do dia',
+    data:dias.map(dia=>f.filter(d=>d.data===dia).length),
+    borderColor:'#0d1b1e',backgroundColor:'#0d1b1e',borderWidth:2.5,tension:.3,pointRadius:3,order:1,
+    datalabels:{align:'top',anchor:'end',color:'#0d1b1e',font:{size:10,weight:'700'},formatter:v=>v>0?v:''}
+  });
+  charts['ap-resp-qtd']=new Chart(document.getElementById('ap-resp-qtd'),{
+    data:{labels:lblDia,datasets:dsQtd},plugins:DL,
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'bottom',labels:{boxWidth:11,padding:10,usePointStyle:true}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+' apont.'}}},
+      scales:{y:{beginAtZero:true,ticks:{precision:0},grid:{color:'#ece7db'}},x:{grid:{display:false}}}}});
+
+  // 2) Por responsável — VALOR por dia: barras agrupadas + linha de total
+  destroy('ap-resp-val');
+  const dsVal=responsaveis.map((r,i)=>({
+    type:'bar',label:r,
+    data:dias.map(dia=>sum(real.filter(d=>d.data===dia&&(d.gerador||'—')===r))),
+    backgroundColor:COLORS[i%COLORS.length],borderRadius:3,order:2,
+    datalabels:{display:false}
+  }));
+  dsVal.push({
+    type:'line',label:'Total do dia',
+    data:dias.map(dia=>sum(real.filter(d=>d.data===dia))),
+    borderColor:'#0d1b1e',backgroundColor:'#0d1b1e',borderWidth:2.5,tension:.3,pointRadius:3,order:1,
+    datalabels:{align:'top',anchor:'end',color:'#0d1b1e',font:{size:9,weight:'700'},formatter:v=>v>0?BRLk(v):''}
+  });
+  charts['ap-resp-val']=new Chart(document.getElementById('ap-resp-val'),{
+    data:{labels:lblDia,datasets:dsVal},plugins:DL,
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'bottom',labels:{boxWidth:11,padding:10,usePointStyle:true}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+BRL(c.parsed.y)}}},
+      scales:{y:{beginAtZero:true,ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'}},x:{grid:{display:false}}}}});
+
+  // 3) Por dia — MISTO: barras (qtd) + linha (valor)
+  destroy('ap-dia');
+  const qtdDia=dias.map(dia=>f.filter(d=>d.data===dia).length);
+  const valDia=dias.map(dia=>sum(real.filter(d=>d.data===dia)));
+  charts['ap-dia']=new Chart(document.getElementById('ap-dia'),{
+    data:{labels:lblDia,datasets:[
+      {type:'bar',label:'Qtd. apontamentos',data:qtdDia,backgroundColor:'#1f7a5a',borderRadius:4,yAxisID:'y',order:2,
+        datalabels:{align:'end',anchor:'end',color:'#1f7a5a',font:{size:10,weight:'700'},formatter:v=>v>0?v:''}},
+      {type:'line',label:'Valor no dia',data:valDia,borderColor:'#c8821a',backgroundColor:'#c8821a',borderWidth:2.5,tension:.3,pointRadius:3,yAxisID:'y1',order:1,
+        datalabels:{align:'top',anchor:'end',color:'#c8821a',font:{size:9,weight:'700'},formatter:v=>v>0?BRLk(v):''}}
+    ]},plugins:DL,
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:12,usePointStyle:true}},
+        tooltip:{callbacks:{label:c=>c.dataset.label==='Valor no dia'?('Valor: '+BRL(c.parsed.y)):(c.parsed.y+' apontamentos')}}},
+      scales:{
+        y:{position:'left',beginAtZero:true,ticks:{precision:0},grid:{color:'#ece7db'},title:{display:true,text:'Quantidade'}},
+        y1:{position:'right',beginAtZero:true,ticks:{callback:v=>BRLk(v)},grid:{display:false},title:{display:true,text:'Valor (R$)'}},
+        x:{grid:{display:false}}}}});
+
+  // 4) Por categoria — QUANTIDADE (barras horizontais)
+  destroy('ap-cat-qtd');
+  const porCatQtd={};
+  f.forEach(d=>{const c=d.categoria||'—';porCatQtd[c]=(porCatQtd[c]||0)+1;});
+  let ec=Object.entries(porCatQtd).sort((a,b)=>b[1]-a[1]);
+  charts['ap-cat-qtd']=new Chart(document.getElementById('ap-cat-qtd'),{type:'bar',
+    data:{labels:ec.map(x=>x[0]),datasets:[{label:'Apontamentos',data:ec.map(x=>x[1]),
+      backgroundColor:'#2b5d7d',borderRadius:4}]},plugins:DL,
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        datalabels:{align:'end',anchor:'end',color:'#0d1b1e',font:{size:10,weight:'700'},formatter:v=>v>0?v:''},
+        tooltip:{callbacks:{label:c=>c.parsed.x+' apontamentos'}}},
+      scales:{x:{beginAtZero:true,ticks:{precision:0},grid:{color:'#ece7db'},grace:'12%'},y:{grid:{display:false},ticks:{font:{size:11}}}}}});
+
+  // 5) Por categoria — VALOR (barras horizontais)
+  destroy('ap-cat-val');
+  const porCatVal={};
+  real.forEach(d=>{const c=d.categoria||'—';porCatVal[c]=(porCatVal[c]||0)+d.valor;});
+  let ecv=Object.entries(porCatVal).sort((a,b)=>b[1]-a[1]);
+  charts['ap-cat-val']=new Chart(document.getElementById('ap-cat-val'),{type:'bar',
+    data:{labels:ecv.map(x=>x[0]),datasets:[{label:'Valor',data:ecv.map(x=>x[1]),
+      backgroundColor:'#1f7a5a',borderRadius:4}]},plugins:DL,
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        datalabels:{align:'end',anchor:'end',color:'#0d1b1e',font:{size:9,weight:'700'},formatter:v=>v>0?BRLk(v):''},
+        tooltip:{callbacks:{label:c=>BRL(c.parsed.x)}}},
+      scales:{x:{beginAtZero:true,ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'},grace:'15%'},y:{grid:{display:false},ticks:{font:{size:11}}}}}});
 }
 
 function renderKPIs(){
