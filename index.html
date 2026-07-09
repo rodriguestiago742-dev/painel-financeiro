@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- ============================================================
-     PAINEL DOMÉSTICO · VERSÃO DESKTOP v13
-     Novidades v13: nova aba Apontamentos — análise da atividade de registro
-     (por responsável, por dia, por categoria; quantidade e valor).
-     Atualizado: 01/07/2026 · arquivo publicado como index.html
+     PAINEL DOMÉSTICO · VERSÃO DESKTOP v14
+     Novidades v14: total dos lançamentos filtrados no rodapé da tabela
+     de Lançamentos (acompanha filtros + busca).
+     Atualizado: 08/07/2026 · arquivo publicado como index.html
      ============================================================ -->
 <html lang="pt-BR">
 <head>
@@ -172,6 +172,9 @@ thead th.num{text-align:right}
 thead th:hover{background:#16302f}
 tbody td{padding:8px 11px;border-bottom:1px solid var(--line);white-space:nowrap}
 tbody tr:hover{background:var(--green-soft)}
+tfoot .tbl-total td{position:sticky;bottom:0;background:var(--green);color:#fff;font-weight:800;font-size:14px;padding:11px;border-top:2px solid var(--green)}
+tfoot .tbl-total .ttl-lbl{text-align:right;text-transform:uppercase;letter-spacing:.4px;font-size:12px}
+tfoot .tbl-total .num{font-variant-numeric:tabular-nums;font-size:15px}
 tfoot td{padding:10px 11px;font-weight:800;background:var(--paper);border-top:2px solid var(--ink)}
 .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:600}
 .tag.in{background:var(--green-soft);color:var(--green)}
@@ -497,18 +500,22 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
       <div class="tbl-wrap"><table id="tbl">
         <thead><tr>
           <th data-k="linha" class="num">Linha</th>
-          <th data-k="data">Data</th><th data-k="tipo">Tipo</th>
+          <th data-k="data">Data</th><th data-k="diasem">Dia</th><th data-k="tipo">Tipo</th>
           <th data-k="categoria">Categoria</th><th data-k="classificacao">Classif.</th>
           <th data-k="gerador">Responsável</th><th data-k="forma">Pagamento</th>
           <th data-k="descricao">Descrição</th><th data-k="valor" class="num">Valor (R$)</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
+        <tfoot><tr class="tbl-total">
+          <td colspan="9" class="ttl-lbl">Total dos lançamentos filtrados</td>
+          <td class="num" id="tbl-total">R$ 0,00</td>
+        </tr></tfoot>
       </table></div>
     </div>
   </div>
 </div>
 
-<footer>Painel gerado a partir do formulário Microsoft 365 · Atualize reenviando a planilha · Todos os cálculos respeitam os filtros ativos<br><span style="opacity:.6;font-size:11px">Desktop v13</span></footer>
+<footer>Painel gerado a partir do formulário Microsoft 365 · Atualize reenviando a planilha · Todos os cálculos respeitam os filtros ativos<br><span style="opacity:.6;font-size:11px">Desktop v14</span></footer>
 
 </div><!-- /wrap -->
 
@@ -1336,6 +1343,14 @@ function renderInsights(){
     ins.push({ic:'🔮',t:`Gasto realizado: <b>${BRL(real)}</b> de ${BRL(pg)} previstos (${dif>=0?'dentro':'acima'} do previsto).`});}
   document.getElementById('insights').innerHTML=ins.length?ins.map(i=>`<div class="ins" style="flex:1;min-width:240px"><span class="ic">${i.ic}</span><span class="tx">${i.t}</span></div>`).join(''):'<div class="ins"><span class="tx">Sem dados para o recorte selecionado.</span></div>';
 }
+function diaSemanaAbrev(dataISO){
+  if(!dataISO) return '—';
+  const [a,m,d]=dataISO.split('-').map(Number);
+  const dt=new Date(a,m-1,d);
+  if(isNaN(dt)) return '—';
+  const nomes=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  return nomes[dt.getDay()];
+}
 function renderTable(){
   let f=getFiltered();
   if(searchTerm)f=f.filter(d=>(d.descricao+' '+d.categoria+' '+d.gerador+' '+d.forma+' '+(d.linha||'')).toLowerCase().includes(searchTerm));
@@ -1344,11 +1359,14 @@ function renderTable(){
   document.getElementById('tbody').innerHTML=f.slice(0,600).map(d=>`<tr>
     <td class="num" style="font-variant-numeric:tabular-nums">${d.linha?`<button class="linha-btn" onclick="abrirEditor(${d.linha})" title="Corrigir esta linha">${d.linha} ✎</button>`:'—'}</td>
     <td>${d.data?d.data.split('-').reverse().join('/'):'—'}</td>
+    <td>${diaSemanaAbrev(d.data)}</td>
     <td><span class="tag ${tag(d.tipo)}">${d.tipo}</span></td>
     <td>${d.categoria||'—'}</td><td>${d.classificacao||'—'}</td>
     <td>${d.gerador||'—'}</td><td>${d.forma||'—'}</td>
     <td>${d.descricao||'—'}</td><td class="num">${d.valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td></tr>`).join('');
   document.getElementById('tbl-count').textContent='· '+f.length+' registros'+(f.length>600?' (exibindo 600)':'');
+  const totalFiltrado=f.reduce((s,d)=>s+(d.valor||0),0);
+  document.getElementById('tbl-total').textContent='R$ '+totalFiltrado.toLocaleString('pt-BR',{minimumFractionDigits:2});
 }
 document.querySelectorAll('#tbl thead th').forEach(th=>th.addEventListener('click',()=>{const k=th.dataset.k;if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=1;}renderTable();}));
 
