@@ -535,16 +535,15 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
       </div>
       <div class="tbl-wrap"><table id="cx-tbl">
         <thead><tr>
-          <th data-k="linha" class="num">Linha</th>
-          <th data-k="data">Data</th><th data-k="diasem">Dia</th><th data-k="tipo">Tipo</th>
-          <th data-k="categoria">Categoria</th><th data-k="classificacao">Classif.</th>
-          <th data-k="gerador">Responsável</th><th data-k="forma">Pagamento</th>
-          <th data-k="subcategoria">Sub-categoria</th>
-          <th data-k="descricao">Descrição</th><th data-k="valor" class="num">Valor (R$)</th>
+          <th data-k="linha" class="num" onclick="cxSortBy('linha')">Linha</th>
+          <th data-k="data" onclick="cxSortBy('data')">Data</th><th data-k="diasem" onclick="cxSortBy('diasem')">Dia</th><th data-k="tipo" onclick="cxSortBy('tipo')">Tipo</th>
+          <th data-k="gerador" onclick="cxSortBy('gerador')">Responsável</th><th data-k="categoria" onclick="cxSortBy('categoria')">Categoria</th>
+          <th data-k="subcategoria" onclick="cxSortBy('subcategoria')">Sub-categoria</th><th data-k="forma" onclick="cxSortBy('forma')">Pagamento</th>
+          <th data-k="descricao" onclick="cxSortBy('descricao')">Descrição</th><th data-k="valor" class="num" onclick="cxSortBy('valor')">Valor (R$)</th>
         </tr></thead>
         <tbody id="cx-tbody"></tbody>
         <tfoot><tr class="tbl-total">
-          <td colspan="10" class="ttl-lbl">Total do caixa (filtrado)</td>
+          <td colspan="9" class="ttl-lbl">Total do caixa (filtrado)</td>
           <td class="num" id="cx-total">R$ 0,00</td>
         </tr></tfoot>
       </table></div>
@@ -1019,6 +1018,7 @@ function render(){renderKPIs();renderEvol5();renderBudget();renderFlow();renderC
 // filtro próprio da aba (todos os campos), independente do filtro do topo
 const MSEL_CX = {ano:new Set(), mes:new Set(), tipo:new Set(), categoria:new Set(), classificacao:new Set(), gerador:new Set(), forma:new Set(), subcategoria:new Set()};
 let cxSearch='';
+let cxSort={col:'data', dir:1}; // ordenação da tabela: padrão Data crescente (dir:1 = asc, -1 = desc)
 // define o universo de caixa: Gerador CNPJ-DS + Categoria começa com "Caixa"
 function ehLancamentoCaixa(d){
   return /cnpj\s*-?\s*ds/i.test(String(d.gerador||'')) && ehCaixa(d.categoria);
@@ -1047,8 +1047,6 @@ const CX_CAMPOS=[
   {k:'tipo', label:'Tipo'},
   {k:'categoria', label:'Caixa (categoria)'},
   {k:'subcategoria', label:'Sub-categoria'},
-  {k:'classificacao', label:'Classificação'},
-  {k:'gerador', label:'Responsável'},
   {k:'forma', label:'Forma'}
 ];
 function construirFiltrosCaixa(){
@@ -1096,10 +1094,26 @@ function getCaixaFiltrado(){
   if(cxSearch)f=f.filter(d=>(d.descricao+' '+(d.subcategoria||'')+' '+(d.linha||'')).toLowerCase().includes(cxSearch));
   return f;
 }
+function cxSortBy(col){
+  if(cxSort.col===col){ cxSort.dir*=-1; } // mesma coluna: inverte
+  else { cxSort.col=col; cxSort.dir=1; }  // nova coluna: crescente
+  renderCaixa();
+}
 function renderCaixa(){
   construirFiltrosCaixa();
   let f=getCaixaFiltrado();
-  f=[...f].sort((a,b)=>(a.linha||0)-(b.linha||0));
+  // ordenação dinâmica (padrão: data crescente)
+  const col=cxSort.col, dir=cxSort.dir;
+  f=[...f].sort((a,b)=>{
+    if(col==='valor'||col==='linha'){ return ((a[col]||0)-(b[col]||0))*dir; }
+    if(col==='diasem'){
+      const gd=x=>{const p=(x.data||'').split('-').map(Number); const dt=new Date(p[0],p[1]-1,p[2]); return isNaN(dt)?-1:dt.getDay();};
+      return (gd(a)-gd(b))*dir;
+    }
+    const va=String(a[col]||'').toLowerCase();
+    const vb=String(b[col]||'').toLowerCase();
+    return va<vb?-1*dir:va>vb?1*dir:0;
+  });
   const tag=t=>t.includes('Entrada')||t.includes('Provento')?'in':t.includes('Previsão')?'fore':'out';
   const tb=document.getElementById('cx-tbody');
   if(tb){
@@ -1108,14 +1122,22 @@ function renderCaixa(){
       <td>${d.data?d.data.split('-').reverse().join('/'):'—'}</td>
       <td>${diaSemanaAbrev(d.data)}</td>
       <td><span class="tag ${tag(d.tipo)}">${d.tipo}</span></td>
-      <td>${d.categoria||'—'}</td><td>${d.classificacao||'—'}</td>
-      <td>${d.gerador||'—'}</td><td>${d.forma||'—'}</td>
-      <td>${d.subcategoria||'—'}</td>
+      <td>${d.gerador||'—'}</td><td>${d.categoria||'—'}</td>
+      <td>${d.subcategoria||'—'}</td><td>${d.forma||'—'}</td>
       <td>${d.descricao||'—'}</td><td class="num">${d.valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td></tr>`).join('');
   }
   const total=f.reduce((s,d)=>s+(d.valor||0),0);
   const el=document.getElementById('cx-total');
   if(el)el.textContent='R$ '+total.toLocaleString('pt-BR',{minimumFractionDigits:2});
+  // indicador de ordenação (seta) no cabeçalho
+  const thead=document.querySelector('#cx-tbl thead');
+  if(thead){
+    thead.querySelectorAll('th').forEach(th=>{
+      const k=th.getAttribute('data-k');
+      th.textContent=th.textContent.replace(/[▲▼]\s*$/,'').trim();
+      if(k===cxSort.col){ th.textContent+=' '+(cxSort.dir===1?'▲':'▼'); }
+    });
+  }
 }
 
 // Gráfico de 5 linhas na Visão Geral: evolução mês a mês
@@ -1543,11 +1565,11 @@ function exportCSV(){
 function exportCaixaCSV(){
   const f=getCaixaFiltrado();
   if(!f.length){ toast('Nenhum lançamento de caixa para exportar'); return; }
-  const head=['Linha','Data','Dia','Tipo','Categoria','Classificacao','Responsavel','Pagamento','Sub-categoria','Descricao','Valor'];
+  const head=['Linha','Data','Dia','Tipo','Responsavel','Categoria','Sub-categoria','Classificacao','Pagamento','Descricao','Valor'];
   const esc=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
   const rows=f.map(d=>[
-    d.linha||'', d.data||'', diaSemanaAbrev(d.data), d.tipo||'', d.categoria||'',
-    d.classificacao||'', d.gerador||'', d.forma||'', d.subcategoria||'',
+    d.linha||'', d.data||'', diaSemanaAbrev(d.data), d.tipo||'', d.gerador||'',
+    d.categoria||'', d.subcategoria||'', d.classificacao||'', d.forma||'',
     esc(d.descricao||''), (d.valor!=null?String(d.valor).replace('.',','):'')
   ]);
   const csv=[head.join(';'),...rows.map(r=>r.join(';'))].join('\n');
