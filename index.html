@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ============================================================
-     PAINEL DOMÉSTICO · VERSÃO DESKTOP v14
-     Novidades v14: total dos lançamentos filtrados no rodapé da tabela
-     de Lançamentos (acompanha filtros + busca).
+     PAINEL DOMÉSTICO · VERSÃO DESKTOP v15
+     Novidades v15: campo Sub-categoria (coluna J) condicional no formulário
+     — aparece só quando Gerador=CNPJ-DS e Categoria começa com Caixa.
      Atualizado: 08/07/2026 · arquivo publicado como index.html
      ============================================================ -->
 <html lang="pt-BR">
@@ -515,7 +515,7 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
   </div>
 </div>
 
-<footer>Painel gerado a partir do formulário Microsoft 365 · Atualize reenviando a planilha · Todos os cálculos respeitam os filtros ativos<br><span style="opacity:.6;font-size:11px">Desktop v14</span></footer>
+<footer>Painel gerado a partir do formulário Microsoft 365 · Atualize reenviando a planilha · Todos os cálculos respeitam os filtros ativos<br><span style="opacity:.6;font-size:11px">Desktop v15</span></footer>
 
 </div><!-- /wrap -->
 
@@ -664,6 +664,7 @@ async function loadFromGoogle(silent){
         forma:String(r[idx('Forma de Pagamento')]||'').trim(),
         gerador:String(r[idx('Gerador da Despesa')]||'').trim(),
         descricao:String(r[idx('Descrição')]||''),mes:mes,ano:ano,
+        subcategoria:String(r[idx('Sub-categoria')]||'').trim(),
         linha:i+1});
     }
     if(!out.length)throw new Error('nenhum lançamento válido');
@@ -711,6 +712,7 @@ function parseWorkbook(ab,fname){
         forma:String(r[idx('Forma de Pagamento')]||'').trim(),
         gerador:String(r[idx('Gerador da Despesa')]||'').trim(),
         descricao:String(r[idx('Descrição')]||''),mes:mes,ano:ano,
+        subcategoria:String(r[idx('Sub-categoria')]||'').trim(),
         linha:i+1});
     }
     if(out.length===0){alert('Nenhum lançamento válido foi encontrado na planilha.');return;}
@@ -1402,7 +1404,8 @@ const CAMPOS=[
   {k:'categoria',     label:'Categoria',            tipo:'listaNova', campo:'categoria'},
   {k:'forma',         label:'Forma de Pagamento',   tipo:'listaNova', campo:'forma'},
   {k:'gerador',       label:'Gerador da Despesa',   tipo:'listaNova', campo:'gerador'},
-  {k:'descricao',     label:'Descrição',            tipo:'texto',     full:true}
+  {k:'descricao',     label:'Descrição',            tipo:'texto',     full:true},
+  {k:'subcategoria',  label:'Sub-categoria',        tipo:'listaNova', campo:'subcategoria', condicional:true, full:true}
 ];
 let editLinhaAtual=null; // null = modo "novo lançamento"; número = correção
 
@@ -1419,6 +1422,8 @@ function opcoesDe(campo){
 function htmlCampo(c, valorAtual){
   const val=String(valorAtual==null?'':valorAtual).replace(/"/g,'&quot;');
   const cls='mcell'+(c.full?' full':'');
+  const wrapId=c.condicional?` id="wrap-${c.k}"`:'';
+  const wrapStyle=c.condicional?' style="display:none"':'';
   let inner;
   if(c.tipo==='ro'){
     inner=`<label>${c.label}</label><input class="mc" id="m-${c.k}" value="${val}" readonly>`;
@@ -1440,12 +1445,13 @@ function htmlCampo(c, valorAtual){
       optionsHtml=`<option value="${val}" selected>${val}</option>`+optionsHtml;
     }
     inner=`<label>${c.label}</label>`;
-    inner+=`<select class="mc" id="m-${c.k}" onchange="checarNova('${c.k}')">${optionsHtml}</select>`;
+    const extraOnchange=(c.k==='gerador'||c.k==='categoria')?';checarSubcategoria()':'';
+    inner+=`<select class="mc" id="m-${c.k}" onchange="checarNova('${c.k}')${extraOnchange}">${optionsHtml}</select>`;
     if(c.tipo==='listaNova'){
       inner+=`<input class="mc" id="m-${c.k}-nova" placeholder="Digite a nova ${c.label.toLowerCase()}" style="display:none;margin-top:6px">`;
     }
   }
-  return `<div class="${cls}">${inner}</div>`;
+  return `<div class="${cls}"${wrapId}${wrapStyle}>${inner}</div>`;
 }
 
 // mostra/esconde o campo de "nova opção"
@@ -1455,6 +1461,24 @@ function checarNova(k){
   if(!novo)return;
   if(sel.value==='__NOVA__'){ novo.style.display='block'; novo.focus(); }
   else { novo.style.display='none'; novo.value=''; }
+}
+
+// Regra da SUB-CATEGORIA: só aparece quando Gerador = "CNPJ - DS" E Categoria começa com "Caixa"
+function ehCaixa(cat){ return /^\s*caixa\b/i.test(String(cat||'')); }
+function checarSubcategoria(){
+  const wrap=document.getElementById('wrap-subcategoria');
+  if(!wrap)return;
+  const ger=valorCampo({k:'gerador',tipo:'listaNova'});
+  const cat=valorCampo({k:'categoria',tipo:'listaNova'});
+  const mostrar = /cnpj\s*-?\s*ds/i.test(String(ger)) && ehCaixa(cat);
+  wrap.style.display = mostrar ? '' : 'none';
+  if(!mostrar){
+    // limpa o campo quando escondido, para não gravar sub-categoria indevida
+    const sel=document.getElementById('m-subcategoria');
+    if(sel) sel.value='';
+    const nova=document.getElementById('m-subcategoria-nova');
+    if(nova){ nova.style.display='none'; nova.value=''; }
+  }
 }
 
 // lê o valor final de um campo (resolve lista + "nova opção")
@@ -1479,8 +1503,9 @@ function abrirEditor(numLinha){
   const valorBR = (reg.valor!=null) ? reg.valor.toLocaleString('pt-BR',{minimumFractionDigits:2}) : '';
   const atuais={carimbo:'(preservado)', data:dataBR, valor:valorBR, tipo:reg.tipo||'',
     classificacao:reg.classificacao||'', categoria:reg.categoria||'', forma:reg.forma||'',
-    gerador:reg.gerador||'', descricao:reg.descricao||''};
+    gerador:reg.gerador||'', descricao:reg.descricao||'', subcategoria:reg.subcategoria||''};
   document.getElementById('m-campos').innerHTML=CAMPOS.map(c=>htmlCampo(c,atuais[c.k])).join('');
+  checarSubcategoria();
   setMStatus('','');
   document.getElementById('m-salvar').disabled=false;
   document.getElementById('modal-bg').classList.add('show');
@@ -1494,8 +1519,9 @@ function abrirNovo(){
   const hoje=new Date();
   const dataHoje=String(hoje.getDate()).padStart(2,'0')+'/'+String(hoje.getMonth()+1).padStart(2,'0')+'/'+hoje.getFullYear();
   const vazios={carimbo:'(gerado automaticamente)', data:dataHoje, valor:'', tipo:'',
-    classificacao:'', categoria:'', forma:'', gerador:'', descricao:''};
+    classificacao:'', categoria:'', forma:'', gerador:'', descricao:'', subcategoria:''};
   document.getElementById('m-campos').innerHTML=CAMPOS.map(c=>htmlCampo(c,vazios[c.k])).join('');
+  checarSubcategoria();
   setMStatus('','');
   document.getElementById('m-salvar').disabled=false;
   document.getElementById('modal-bg').classList.add('show');
