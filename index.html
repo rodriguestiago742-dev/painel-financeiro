@@ -1396,16 +1396,16 @@ const WEBAPP_CHAVE="Pico-no-teste";
 // Definição dos campos. tipoCampo: 'ro'(travado) | 'texto' | 'lista' | 'listaNova'
 // 'lista' = só escolhe das opções existentes. 'listaNova' = escolhe ou cria nova.
 const CAMPOS=[
-  {k:'carimbo',       label:'Carimbo de data/hora', tipo:'ro',        full:true},
-  {k:'data',          label:'Data (dd/mm/aaaa)',    tipo:'texto'},
-  {k:'valor',         label:'Valor (ex: 103,40)',   tipo:'texto'},
-  {k:'tipo',          label:'Tipo',                 tipo:'lista',     campo:'tipo'},
-  {k:'classificacao', label:'Classificação',        tipo:'lista',     campo:'classificacao'},
-  {k:'categoria',     label:'Categoria',            tipo:'listaNova', campo:'categoria'},
-  {k:'forma',         label:'Forma de Pagamento',   tipo:'listaNova', campo:'forma'},
-  {k:'gerador',       label:'Gerador da Despesa',   tipo:'listaNova', campo:'gerador'},
-  {k:'descricao',     label:'Descrição',            tipo:'texto',     full:true},
-  {k:'subcategoria',  label:'Sub-categoria',        tipo:'listaNova', campo:'subcategoria', condicional:true, full:true}
+  {k:'carimbo',       label:'Carimbo de data/hora', tipo:'ro',        full:true, col:0},
+  {k:'data',          label:'Data (dd/mm/aaaa)',    tipo:'texto',                col:1},
+  {k:'valor',         label:'Valor (ex: 103,40)',   tipo:'texto',                col:2},
+  {k:'tipo',          label:'Tipo',                 tipo:'lista',     campo:'tipo', col:3},
+  {k:'classificacao', label:'Classificação',        tipo:'lista',     campo:'classificacao', col:4},
+  {k:'categoria',     label:'Categoria',            tipo:'listaNova', campo:'categoria', col:5},
+  {k:'subcategoria',  label:'Sub-categoria',        tipo:'listaNova', campo:'subcategoria', condicional:true, full:true, col:9},
+  {k:'forma',         label:'Forma de Pagamento',   tipo:'listaNova', campo:'forma', col:6},
+  {k:'gerador',       label:'Gerador da Despesa',   tipo:'listaNova', campo:'gerador', col:7},
+  {k:'descricao',     label:'Descrição',            tipo:'texto',     full:true, col:8}
 ];
 let editLinhaAtual=null; // null = modo "novo lançamento"; número = correção
 
@@ -1533,8 +1533,13 @@ function fecharEditor(){
 }
 
 function salvarEdicao(){
-  // monta array de 9 posições na ordem das colunas
-  const valores=CAMPOS.map(c=>valorCampo(c));
+  // monta array de 10 posições NA ORDEM DAS COLUNAS (col), independente da ordem visual
+  const valores=[];
+  const maxCol=Math.max(...CAMPOS.map(c=>c.col));
+  for(let i=0;i<=maxCol;i++){
+    const campo=CAMPOS.find(c=>c.col===i);
+    valores[i]=campo?valorCampo(campo):'';
+  }
 
   // validação simples no cliente
   if(!valores[1] || !valores[2]){
