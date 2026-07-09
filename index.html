@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <!-- ============================================================
      PAINEL DOMÉSTICO · VERSÃO DESKTOP v15
-     Novidades v15: campo Sub-categoria (coluna J) condicional no formulário
-     — aparece só quando Gerador=CNPJ-DS e Categoria começa com Caixa.
+     Novidades v15: (1) campo Sub-categoria (coluna J) condicional no formulário
+     — aparece só quando Gerador=CNPJ-DS e Categoria começa com Caixa;
+     (2) leitura via gviz (reduz delay do Google), com fallback para pub CSV.
      Atualizado: 08/07/2026 · arquivo publicado como index.html
      ============================================================ -->
 <html lang="pt-BR">
@@ -574,6 +575,9 @@ function clearSaved(){
 
 // ===== Leitura automática do Google Sheets (CSV publicado) =====
 const GOOGLE_CSV_URL="https://docs.google.com/spreadsheets/d/e/2PACX-1vSaYiLIR1c-huoODCm2z2khwzBf6YwUn3xwYc2pAymECNzjjCQ3uTsoSiD6pw_8V4Zc_CVSJmNh_wP6/pub?output=csv";
+// Leitura via gviz (quase em tempo real, sem o cache de ~5 min do "publicar CSV").
+// Se falhar, o painel cai automaticamente na GOOGLE_CSV_URL acima.
+const GVIZ_CSV_URL="https://docs.google.com/spreadsheets/d/1F-NbTQU7-gGl_vWHvAAGb3-KXJJSZXLB_lepjZ60XY8/gviz/tq?tqx=out:csv&gid=782722571";
 
 /* ►► COLE AQUI O LINK DO SEU FORMULÁRIO GOOGLE (entre as aspas) ◄◄ */
 const FORM_URL="https://docs.google.com/forms/d/e/1FAIpQLSfMxMtHSiL9sQp5uCkayCwkiiBYhReRa1JWHckuQ9GfGCsryg/viewform?usp=header";
@@ -631,11 +635,25 @@ function toISO(v){
 
 async function loadFromGoogle(silent){
   if(!silent)toast('Buscando dados do Google...');
+  // tenta gviz (mais fresca) e, se falhar, cai na pub CSV
+  const fontes=[
+    {url:GVIZ_CSV_URL, nome:'gviz'},
+    {url:GOOGLE_CSV_URL, nome:'pub'}
+  ];
+  let text=null, erroUlt=null;
+  for(const fonte of fontes){
+    try{
+      const urlCache=fonte.url+(fonte.url.includes('?')?'&':'?')+'_t='+Date.now();
+      const resp=await fetch(urlCache,{cache:'no-store'});
+      if(!resp.ok)throw new Error('HTTP '+resp.status);
+      const t=await resp.text();
+      // valida que veio CSV com o cabeçalho esperado (Valor e Tipo)
+      if(!/Valor/.test(t)||!/Tipo/.test(t))throw new Error('conteúdo inesperado');
+      text=t; break;
+    }catch(e){ erroUlt=e; /* tenta próxima fonte */ }
+  }
   try{
-    const urlCache=GOOGLE_CSV_URL+(GOOGLE_CSV_URL.includes('?')?'&':'?')+'_t='+Date.now();
-    const resp=await fetch(urlCache,{cache:'no-store'});
-    if(!resp.ok)throw new Error('HTTP '+resp.status);
-    const text=await resp.text();
+    if(text===null)throw new Error(erroUlt?erroUlt.message:'sem resposta');
     const rows=parseCSV(text);
     if(!rows.length)throw new Error('planilha vazia');
     // localizar cabeçalho: linha que contém Valor e Tipo
