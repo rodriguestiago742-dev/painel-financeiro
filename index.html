@@ -173,6 +173,12 @@ thead th.num{text-align:right}
 thead th:hover{background:#16302f}
 tbody td{padding:8px 11px;border-bottom:1px solid var(--line);white-space:nowrap}
 tbody tr:hover{background:var(--green-soft)}
+.cx-filtros{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;margin:6px 0 14px}
+.cx-fbox{display:flex;flex-direction:column;gap:3px}
+.cx-flabel{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.cx-clear{color:var(--red);font-weight:700}
+.cx-search-row{display:flex;gap:10px;align-items:center;margin-bottom:4px}
+.cx-search-row .search{margin:0}
 tfoot .tbl-total td{position:sticky;bottom:0;background:var(--green);color:#fff;font-weight:800;font-size:14px;padding:11px;border-top:2px solid var(--green)}
 tfoot .tbl-total .ttl-lbl{text-align:right;text-transform:uppercase;letter-spacing:.4px;font-size:12px}
 tfoot .tbl-total .num{font-variant-numeric:tabular-nums;font-size:15px}
@@ -516,6 +522,36 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
   </div>
 </div>
 
+<!-- ABA: GESTÃO CAIXA -->
+<div class="tabpane" id="pane-caixa">
+  <div class="grid">
+    <div class="card col-12">
+      <h3>💰 Gestão Caixa</h3>
+      <div class="hint">Trata exclusivamente de lançamentos de caixa (Responsável CNPJ - DS + Categoria "Caixa …"). Filtros e total abaixo são exclusivos desta aba.</div>
+      <div class="cx-filtros" id="cx-filtros"></div>
+      <div class="cx-search-row">
+        <div class="search" style="flex:1"><input type="text" id="cx-search" placeholder="Buscar descrição, sub-categoria, nº da linha…"></div>
+        <button class="btn" onclick="exportCaixaCSV()" title="Exporta os lançamentos de caixa conforme o filtro desta aba">⬇ Exportar CSV</button>
+      </div>
+      <div class="tbl-wrap"><table id="cx-tbl">
+        <thead><tr>
+          <th data-k="linha" class="num">Linha</th>
+          <th data-k="data">Data</th><th data-k="diasem">Dia</th><th data-k="tipo">Tipo</th>
+          <th data-k="categoria">Categoria</th><th data-k="classificacao">Classif.</th>
+          <th data-k="gerador">Responsável</th><th data-k="forma">Pagamento</th>
+          <th data-k="subcategoria">Sub-categoria</th>
+          <th data-k="descricao">Descrição</th><th data-k="valor" class="num">Valor (R$)</th>
+        </tr></thead>
+        <tbody id="cx-tbody"></tbody>
+        <tfoot><tr class="tbl-total">
+          <td colspan="10" class="ttl-lbl">Total do caixa (filtrado)</td>
+          <td class="num" id="cx-total">R$ 0,00</td>
+        </tr></tfoot>
+      </table></div>
+    </div>
+  </div>
+</div>
+
 <footer>Painel gerado a partir do formulário Microsoft 365 · Atualize reenviando a planilha · Todos os cálculos respeitam os filtros ativos<br><span style="opacity:.6;font-size:11px">Desktop v15</span></footer>
 
 </div><!-- /wrap -->
@@ -526,6 +562,7 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
   <button class="tab" data-pane="pane-analises" onclick="switchTab(this)"><span class="tab-ic">📊</span>Análises</button>
   <button class="tab" data-pane="pane-lancamentos" onclick="switchTab(this)"><span class="tab-ic">📋</span>Lançamentos</button>
   <button class="tab" data-pane="pane-apontamentos" onclick="switchTab(this)"><span class="tab-ic">📌</span>Apontamentos</button>
+  <button class="tab" data-pane="pane-caixa" onclick="switchTab(this)"><span class="tab-ic">💰</span>Gestão Caixa</button>
 </div>
 
 <div class="dropzone" id="dz"><div class="box"><h2>Solte a planilha aqui</h2><p>Arquivo .xlsx exportado do formulário</p></div></div>
@@ -931,6 +968,7 @@ document.addEventListener('click',e=>{
 });
 
 document.getElementById('search').addEventListener('input',e=>{searchTerm=e.target.value.toLowerCase();renderTable();});
+(function(){const cs=document.getElementById('cx-search');if(cs)cs.addEventListener('input',e=>{cxSearch=e.target.value.toLowerCase();renderCaixa();});})();
 function resetFilters(){
   Object.values(MSEL).forEach(s=>s.clear());
   construirMselAno();
@@ -975,7 +1013,110 @@ function grp(arr,key){const m={};arr.forEach(d=>{const k=d[key]||'—';m[k]=(m[k
 function destroy(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 Chart.defaults.font.family="Inter,sans-serif";Chart.defaults.font.size=11;Chart.defaults.color='#6b6557';
 
-function render(){renderKPIs();renderEvol5();renderBudget();renderFlow();renderCat();renderClass();renderGer();renderForma();renderCatGer();renderRank();renderApontamentos();renderInsights();renderTable();}
+function render(){renderKPIs();renderEvol5();renderBudget();renderFlow();renderCat();renderClass();renderGer();renderForma();renderCatGer();renderRank();renderApontamentos();renderInsights();renderTable();renderCaixa();}
+
+// ===================== ABA GESTÃO CAIXA (universo exclusivo de caixa) =====================
+// filtro próprio da aba (todos os campos), independente do filtro do topo
+const MSEL_CX = {ano:new Set(), mes:new Set(), tipo:new Set(), categoria:new Set(), classificacao:new Set(), gerador:new Set(), forma:new Set(), subcategoria:new Set()};
+let cxSearch='';
+// define o universo de caixa: Gerador CNPJ-DS + Categoria começa com "Caixa"
+function ehLancamentoCaixa(d){
+  return /cnpj\s*-?\s*ds/i.test(String(d.gerador||'')) && ehCaixa(d.categoria);
+}
+function dadosCaixa(){ return DATA.filter(ehLancamentoCaixa); }
+
+// opções distintas de um campo DENTRO do universo de caixa
+function cxOpcoes(campo){
+  const set=new Set();
+  dadosCaixa().forEach(d=>{
+    let v;
+    if(campo==='ano') v=d.ano;
+    else if(campo==='mes') v=(d.data||'').slice(0,7);
+    else v=d[campo];
+    v=(v==null?'':String(v)).trim();
+    if(v)set.add(v);
+  });
+  return [...set].sort((a,b)=>String(a).localeCompare(String(b)));
+}
+function cxRotuloMes(ym){ if(!ym)return ym; const[a,m]=ym.split('-'); return MES[+m]+'/'+a; }
+
+// constrói os filtros da aba (multi-seleção compacta, todos os campos)
+const CX_CAMPOS=[
+  {k:'ano', label:'Ano'},
+  {k:'mes', label:'Período'},
+  {k:'tipo', label:'Tipo'},
+  {k:'categoria', label:'Caixa (categoria)'},
+  {k:'subcategoria', label:'Sub-categoria'},
+  {k:'classificacao', label:'Classificação'},
+  {k:'gerador', label:'Responsável'},
+  {k:'forma', label:'Forma'}
+];
+function construirFiltrosCaixa(){
+  const cont=document.getElementById('cx-filtros');
+  if(!cont)return;
+  cont.innerHTML=CX_CAMPOS.map(cmp=>{
+    const ops=cxOpcoes(cmp.k);
+    const sel=MSEL_CX[cmp.k];
+    const n=sel.size;
+    const rotulo = n===0 ? 'Todos' : (n===1 ? (cmp.k==='mes'?cxRotuloMes([...sel][0]):[...sel][0]) : n+' selec.');
+    const opsHtml=ops.map(o=>{
+      const ck=sel.has(String(o))?'checked':'';
+      const lbl=cmp.k==='mes'?cxRotuloMes(o):o;
+      return `<label class="msel-opt"><input type="checkbox" value="${String(o).replace(/"/g,'&quot;')}" ${ck} onchange="cxToggle('${cmp.k}',this.value,this.checked)"><span>${lbl}</span></label>`;
+    }).join('') || '<div class="hint" style="padding:6px">nenhuma opção</div>';
+    return `<div class="cx-fbox">
+      <div class="cx-flabel">${cmp.label}</div>
+      <div class="msel" id="cxms-${cmp.k}">
+        <button class="msel-btn" onclick="toggleMselPop('cxms-${cmp.k}',event)"><span class="lbl">${rotulo}</span><span class="cnt ${n===0?'zero':''}">${n===0?'∀':n}</span></button>
+        <div class="msel-pop" id="cxms-${cmp.k}-pop">
+          <div class="msel-tools"><button onclick="cxAll('${cmp.k}')">Marcar todos</button><button onclick="cxNone('${cmp.k}')">Limpar</button></div>
+          ${opsHtml}
+        </div>
+      </div>
+    </div>`;
+  }).join('') + `<div class="cx-fbox" style="justify-content:flex-end"><button class="msel-btn cx-clear" onclick="cxLimparTudo()">Limpar filtros ✕</button></div>`;
+}
+function cxToggle(campo,val,marcado){ if(marcado)MSEL_CX[campo].add(val); else MSEL_CX[campo].delete(val); construirFiltrosCaixa(); document.getElementById('cxms-'+campo+'-pop').classList.add('show'); renderCaixa(); }
+function cxAll(campo){ cxOpcoes(campo).forEach(o=>MSEL_CX[campo].add(String(o))); construirFiltrosCaixa(); document.getElementById('cxms-'+campo+'-pop').classList.add('show'); renderCaixa(); }
+function cxNone(campo){ MSEL_CX[campo].clear(); construirFiltrosCaixa(); document.getElementById('cxms-'+campo+'-pop').classList.add('show'); renderCaixa(); }
+function cxLimparTudo(){ Object.values(MSEL_CX).forEach(s=>s.clear()); const b=document.getElementById('cx-search'); if(b)b.value=''; cxSearch=''; construirFiltrosCaixa(); renderCaixa(); }
+
+function cxMatch(set,val){ return set.size===0 || set.has(String(val==null?'':val).trim()); }
+function getCaixaFiltrado(){
+  let f=dadosCaixa().filter(d=>
+    cxMatch(MSEL_CX.ano,d.ano)
+    && cxMatch(MSEL_CX.mes,(d.data||'').slice(0,7))
+    && cxMatch(MSEL_CX.tipo,d.tipo)
+    && cxMatch(MSEL_CX.categoria,d.categoria)
+    && cxMatch(MSEL_CX.classificacao,d.classificacao)
+    && cxMatch(MSEL_CX.gerador,d.gerador)
+    && cxMatch(MSEL_CX.forma,d.forma)
+    && cxMatch(MSEL_CX.subcategoria,d.subcategoria)
+  );
+  if(cxSearch)f=f.filter(d=>(d.descricao+' '+(d.subcategoria||'')+' '+(d.linha||'')).toLowerCase().includes(cxSearch));
+  return f;
+}
+function renderCaixa(){
+  construirFiltrosCaixa();
+  let f=getCaixaFiltrado();
+  f=[...f].sort((a,b)=>(a.linha||0)-(b.linha||0));
+  const tag=t=>t.includes('Entrada')||t.includes('Provento')?'in':t.includes('Previsão')?'fore':'out';
+  const tb=document.getElementById('cx-tbody');
+  if(tb){
+    tb.innerHTML=f.slice(0,600).map(d=>`<tr>
+      <td class="num" style="font-variant-numeric:tabular-nums">${d.linha?`<button class="linha-btn" onclick="abrirEditor(${d.linha})" title="Corrigir esta linha">${d.linha} ✎</button>`:'—'}</td>
+      <td>${d.data?d.data.split('-').reverse().join('/'):'—'}</td>
+      <td>${diaSemanaAbrev(d.data)}</td>
+      <td><span class="tag ${tag(d.tipo)}">${d.tipo}</span></td>
+      <td>${d.categoria||'—'}</td><td>${d.classificacao||'—'}</td>
+      <td>${d.gerador||'—'}</td><td>${d.forma||'—'}</td>
+      <td>${d.subcategoria||'—'}</td>
+      <td>${d.descricao||'—'}</td><td class="num">${d.valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td></tr>`).join('');
+  }
+  const total=f.reduce((s,d)=>s+(d.valor||0),0);
+  const el=document.getElementById('cx-total');
+  if(el)el.textContent='R$ '+total.toLocaleString('pt-BR',{minimumFractionDigits:2});
+}
 
 // Gráfico de 5 linhas na Visão Geral: evolução mês a mês
 function renderEvol5(){
@@ -1396,6 +1537,25 @@ function exportCSV(){
   const csv=[head.join(','),...rows.map(r=>r.join(','))].join('\n');
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='controle_financeiro_filtrado.csv';a.click();
+}
+
+// Exporta a aba Gestão Caixa (respeita o filtro exclusivo + busca da aba; todos os campos)
+function exportCaixaCSV(){
+  const f=getCaixaFiltrado();
+  if(!f.length){ toast('Nenhum lançamento de caixa para exportar'); return; }
+  const head=['Linha','Data','Dia','Tipo','Categoria','Classificacao','Responsavel','Pagamento','Sub-categoria','Descricao','Valor'];
+  const esc=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const rows=f.map(d=>[
+    d.linha||'', d.data||'', diaSemanaAbrev(d.data), d.tipo||'', d.categoria||'',
+    d.classificacao||'', d.gerador||'', d.forma||'', d.subcategoria||'',
+    esc(d.descricao||''), (d.valor!=null?String(d.valor).replace('.',','):'')
+  ]);
+  const csv=[head.join(';'),...rows.map(r=>r.join(';'))].join('\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const hoje=new Date();
+  const carimbo=hoje.getFullYear()+String(hoje.getMonth()+1).padStart(2,'0')+String(hoje.getDate()).padStart(2,'0');
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='gestao_caixa_'+carimbo+'.csv';a.click();
+  toast('Exportado · '+f.length+' lançamentos de caixa');
 }
 
 const _saved=loadSaved();
