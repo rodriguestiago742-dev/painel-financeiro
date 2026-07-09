@@ -179,6 +179,13 @@ tbody tr:hover{background:var(--green-soft)}
 .cx-clear{color:var(--red);font-weight:700}
 .cx-search-row{display:flex;gap:10px;align-items:center;margin-bottom:4px}
 .cx-search-row .search{margin:0}
+.cx-kpis{display:flex;gap:12px;flex-wrap:wrap;margin:4px 0 14px}
+.cx-kpi{flex:1;min-width:160px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.cx-kpi-lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.cx-kpi-val{font-size:20px;font-weight:800;color:var(--ink);margin:2px 0}
+.cx-kpi-sub{font-size:11px;color:var(--muted)}
+.cx-kpi.alerta{border-color:#e8b4a8;background:#fbf0ed}
+.cx-kpi.alerta .cx-kpi-val{color:#b8442f}
 tfoot .tbl-total td{position:sticky;bottom:0;background:var(--green);color:#fff;font-weight:800;font-size:14px;padding:11px;border-top:2px solid var(--green)}
 tfoot .tbl-total .ttl-lbl{text-align:right;text-transform:uppercase;letter-spacing:.4px;font-size:12px}
 tfoot .tbl-total .num{font-variant-numeric:tabular-nums;font-size:15px}
@@ -547,6 +554,19 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-si
           <td class="num" id="cx-total">R$ 0,00</td>
         </tr></tfoot>
       </table></div>
+      <div id="cx-kpis" class="cx-kpis" style="margin-top:16px"></div>
+      <div class="grid" style="margin-bottom:6px">
+        <div class="card col-7">
+          <h3 style="font-size:14px">Gasto por sub-categoria</h3>
+          <div class="hint">Valor (R$) e % do total do caixa · respeita o filtro da aba</div>
+          <div class="chart-box xtall"><canvas id="cx-sub"></canvas></div>
+        </div>
+        <div class="card col-5">
+          <h3 style="font-size:14px">Evolução do caixa por mês</h3>
+          <div class="hint">Total do caixa mês a mês</div>
+          <div class="chart-box xtall"><canvas id="cx-evol"></canvas></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1099,6 +1119,51 @@ function cxSortBy(col){
   else { cxSort.col=col; cxSort.dir=1; }  // nova coluna: crescente
   renderCaixa();
 }
+function renderCaixaGraficos(f, total){
+  // ---- Indicador: não classificados (sem sub-categoria) ----
+  const semSub=f.filter(d=>!(d.subcategoria&&d.subcategoria.trim()));
+  const valSemSub=semSub.reduce((s,d)=>s+(d.valor||0),0);
+  const pctSemSub=total>0?(valSemSub/total*100):0;
+  const nSub=new Set(f.filter(d=>d.subcategoria&&d.subcategoria.trim()).map(d=>d.subcategoria.trim())).size;
+  const kp=document.getElementById('cx-kpis');
+  if(kp){
+    kp.innerHTML=`
+      <div class="cx-kpi"><div class="cx-kpi-lbl">Total do caixa</div><div class="cx-kpi-val">R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div class="cx-kpi-sub">${f.length} lançamentos</div></div>
+      <div class="cx-kpi"><div class="cx-kpi-lbl">Sub-categorias</div><div class="cx-kpi-val">${nSub}</div><div class="cx-kpi-sub">distintas no recorte</div></div>
+      <div class="cx-kpi ${valSemSub>0?'alerta':''}"><div class="cx-kpi-lbl">Sem sub-categoria</div><div class="cx-kpi-val">R$ ${valSemSub.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div class="cx-kpi-sub">${pctSemSub.toFixed(0)}% do caixa · ${semSub.length} lanç.</div></div>`;
+  }
+
+  // ---- Gráfico 1: gasto por sub-categoria (barras horizontais, R$ + % ao lado) ----
+  destroy('cx-sub');
+  const porSub={};
+  f.forEach(d=>{ const k=(d.subcategoria&&d.subcategoria.trim())||'(sem sub-categoria)'; porSub[k]=(porSub[k]||0)+(d.valor||0); });
+  const e=Object.entries(porSub).sort((a,b)=>b[1]-a[1]);
+  const DL=(typeof ChartDataLabels!=='undefined')?[ChartDataLabels]:[];
+  charts['cx-sub']=new Chart(document.getElementById('cx-sub'),{type:'bar',
+    data:{labels:e.map(x=>x[0]),datasets:[{label:'Valor',data:e.map(x=>x[1]),
+      backgroundColor:e.map(x=>x[0]==='(sem sub-categoria)'?'#b8442f':'#1f7a5a'),borderRadius:4}]},plugins:DL,
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        datalabels:{anchor:'end',align:'end',color:'#0d1b1e',font:{size:11,weight:'700'},
+          formatter:(v)=>{const pct=total>0?(v/total*100):0; return BRLk(v)+'  ('+pct.toFixed(0)+'%)';}},
+        tooltip:{callbacks:{label:c=>{const pct=total>0?(c.parsed.x/total*100):0; return BRL(c.parsed.x)+' ('+pct.toFixed(1)+'%)';}}}},
+      scales:{x:{beginAtZero:true,ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'},grace:'18%'},y:{grid:{display:false},ticks:{font:{size:11}}}}}});
+
+  // ---- Gráfico 2: evolução do caixa por mês ----
+  destroy('cx-evol');
+  const porMes={};
+  f.forEach(d=>{ const ym=(d.data||'').slice(0,7); if(ym)porMes[ym]=(porMes[ym]||0)+(d.valor||0); });
+  const meses=Object.keys(porMes).sort();
+  const lblM=meses.map(ym=>{const[a,m]=ym.split('-');return MES[+m]+'/'+a.slice(2);});
+  charts['cx-evol']=new Chart(document.getElementById('cx-evol'),{type:'bar',
+    data:{labels:lblM,datasets:[{label:'Total do caixa',data:meses.map(m=>porMes[m]),
+      backgroundColor:'#2b5d7d',borderRadius:4}]},plugins:DL,
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        datalabels:{anchor:'end',align:'end',color:'#2b5d7d',font:{size:10,weight:'700'},formatter:v=>v>0?BRLk(v):''},
+        tooltip:{callbacks:{label:c=>BRL(c.parsed.y)}}},
+      scales:{y:{beginAtZero:true,ticks:{callback:v=>BRLk(v)},grid:{color:'#ece7db'},grace:'12%'},x:{grid:{display:false}}}}});
+}
 function renderCaixa(){
   construirFiltrosCaixa();
   let f=getCaixaFiltrado();
@@ -1129,6 +1194,7 @@ function renderCaixa(){
   const total=f.reduce((s,d)=>s+(d.valor||0),0);
   const el=document.getElementById('cx-total');
   if(el)el.textContent='R$ '+total.toLocaleString('pt-BR',{minimumFractionDigits:2});
+  renderCaixaGraficos(f, total);
   // indicador de ordenação (seta) no cabeçalho
   const thead=document.querySelector('#cx-tbl thead');
   if(thead){
